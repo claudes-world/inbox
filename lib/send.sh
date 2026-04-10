@@ -33,8 +33,9 @@ do_send() {
   for addr_str in $to_list; do
     [[ -z "$addr_str" ]] && continue
     logical_count=$((logical_count + 1))
-    local addr_row
-    addr_row=$(validate_direct_recipient "$addr_str") || return $?
+    local addr_row _rc=0
+    addr_row=$(validate_direct_recipient "$addr_str") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then echo "$addr_row"; return $_rc; fi
     local addr_id
     addr_id=$(echo "$addr_row" | cut -d'|' -f1)
     if [[ -z "$to_addr_ids" ]]; then
@@ -51,8 +52,9 @@ do_send() {
   for addr_str in $cc_list; do
     [[ -z "$addr_str" ]] && continue
     logical_count=$((logical_count + 1))
-    local addr_row
-    addr_row=$(validate_direct_recipient "$addr_str") || return $?
+    local addr_row _rc=0
+    addr_row=$(validate_direct_recipient "$addr_str") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then echo "$addr_row"; return $_rc; fi
     local addr_id
     addr_id=$(echo "$addr_row" | cut -d'|' -f1)
     if [[ -z "$cc_addr_ids" ]]; then
@@ -106,7 +108,7 @@ do_send() {
   # For each direct address: if it's a list, expand; if it's not, add directly
   # Track delivery sources: addr_id -> list of "source_addr_id|source_role|source_kind"
   declare -A _actual_recipients  # addr_id -> best_role
-  declare -a _actual_order       # preserve order
+  _actual_order=()               # preserve order (avoid unbound with set -u)
   declare -A _delivery_sources   # addr_id -> newline-separated "source_addr_id|source_role|source_kind"
   local skipped_inactive=0
   local total_before_dedupe=0
@@ -397,11 +399,15 @@ do_send_in_conversation() {
   IFS=','
   for addr_id in $to_addr_ids; do
     [[ -z "$addr_id" ]] && continue
-    validate_direct_recipient_by_id "$addr_id" >/dev/null || return $?
+    local _vr _rc=0
+    _vr=$(validate_direct_recipient_by_id "$addr_id") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then echo "$_vr"; return $_rc; fi
   done
   for addr_id in $cc_addr_ids; do
     [[ -z "$addr_id" ]] && continue
-    validate_direct_recipient_by_id "$addr_id" >/dev/null || return $?
+    local _vr _rc=0
+    _vr=$(validate_direct_recipient_by_id "$addr_id") || _rc=$?
+    if [[ $_rc -ne 0 ]]; then echo "$_vr"; return $_rc; fi
   done
   unset IFS
 
@@ -428,7 +434,7 @@ do_send_in_conversation() {
 
   # --- Expand lists and collect actual recipients ---
   declare -A _ar2 _ds2
-  declare -a _ao2
+  _ao2=()
   local skipped_inactive=0
   local total_before_dedupe=0
 
