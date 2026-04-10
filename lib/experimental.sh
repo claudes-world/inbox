@@ -213,26 +213,20 @@ do_give_feedback() {
     mkdir -p "$log_dir"
   fi
 
-  # Escape strings for JSON
-  local safe_wanted="${wanted//\\/\\\\}"
-  safe_wanted="${safe_wanted//\"/\\\"}"
-  safe_wanted="${safe_wanted//$'\n'/\\n}"
-
-  local safe_context="${context//\\/\\\\}"
-  safe_context="${safe_context//\"/\\\"}"
-  safe_context="${safe_context//$'\n'/\\n}"
-
-  local safe_outcome="${outcome//\\/\\\\}"
-  safe_outcome="${safe_outcome//\"/\\\"}"
-  safe_outcome="${safe_outcome//$'\n'/\\n}"
-
-  local safe_command="${command_text//\\/\\\\}"
-  safe_command="${safe_command//\"/\\\"}"
+  # JSON-escape all user-controlled fields to prevent NDJSON injection
+  local safe_actor_id safe_feature safe_kind safe_wanted safe_context safe_outcome safe_command
+  safe_actor_id="$(json_escape "$actor_id")"
+  safe_feature="$(json_escape "$feature")"
+  safe_kind="$(json_escape "$kind")"
+  safe_wanted="$(json_escape "$wanted")"
+  safe_context="$(json_escape "$context")"
+  safe_outcome="$(json_escape "$outcome")"
+  safe_command="$(json_escape "$command_text")"
 
   # Build NDJSON record
   local record
   record=$(printf '{"feedback_id":"%s","ts_ms":%s,"actor":"%s","feature":"%s","kind":"%s","wanted":"%s","context":"%s","outcome":"%s","command":"%s"}' \
-    "$feedback_id" "$ts_ms" "$actor_id" "$feature" "$kind" "$safe_wanted" "$safe_context" "$safe_outcome" "$safe_command")
+    "$feedback_id" "$ts_ms" "$safe_actor_id" "$safe_feature" "$safe_kind" "$safe_wanted" "$safe_context" "$safe_outcome" "$safe_command")
 
   # Append to log file
   echo "$record" >> "$log_file"
