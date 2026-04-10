@@ -1093,10 +1093,11 @@ cmd_directory_members() {
 }
 
 # ============================================================================
-# cmd_give_feedback — Submit feature feedback (stub for MVP).
+# cmd_give_feedback — Submit feature feedback.
+# Writes to NDJSON log via do_give_feedback. Never touches protocol tables.
 # ============================================================================
 cmd_give_feedback() {
-  local feature="" kind="" wanted="" body_flag="" body_file=""
+  local feature="" kind="" wanted="" body_file="" context="" outcome="" command_text=""
   local body_flag_set=0
 
   while [[ $# -gt 0 ]]; do
@@ -1105,6 +1106,9 @@ cmd_give_feedback() {
       --kind)    require_flag_value "$1" "$#" || exit $?; kind="$2"; shift 2 ;;
       --wanted)  require_flag_value "$1" "$#" || exit $?; wanted="$2"; body_flag_set=1; shift 2 ;;
       --wanted-file) require_flag_value "$1" "$#" || exit $?; body_file="$2"; shift 2 ;;
+      --context)    require_flag_value "$1" "$#" || exit $?; context="$2"; shift 2 ;;
+      --outcome)    require_flag_value "$1" "$#" || exit $?; outcome="$2"; shift 2 ;;
+      --command)    require_flag_value "$1" "$#" || exit $?; command_text="$2"; shift 2 ;;
       *) format_error "invalid_argument" "unknown flag: $1" || exit $? ;;
     esac
   done
@@ -1137,12 +1141,10 @@ cmd_give_feedback() {
   parse_body_source "$wanted" "$body_file" "$stdin_is_pipe" "$body_flag_set" || exit $?
   local feedback_body="$PARSED_BODY"
 
-  # Generate feedback ID
+  # Record feedback via experimental module
   local feedback_id
-  feedback_id=$(generate_id "fbk_")
+  feedback_id=$(do_give_feedback "$actor_id" "$feature" "$kind" "$feedback_body" "$context" "$outcome" "$command_text")
 
-  # For MVP, feedback is a stub — just record success
-  # Future: write to NDJSON log + OTEL
   local result
   result=$(success_json "\"feedback_id\":\"$feedback_id\",\"feature\":\"$feature\",\"recorded\":true")
 
