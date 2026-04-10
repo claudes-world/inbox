@@ -161,33 +161,9 @@ inboxRoutes.get("/:messageId", (c) => {
     );
   }
 
-  // Mark as read if not peeking and currently unread
-  if (!peek && delivery.engagement_state === "unread") {
-    const ts = nowMs();
-    const evtId = generateId("evt_");
-
-    const updateDelivery = db.prepare(
-      "UPDATE deliveries SET engagement_state = 'read' WHERE id = ?"
-    );
-    const insertEvent = db.prepare(
-      `INSERT INTO delivery_events (id, delivery_id, event_type, change_kind, actor_address_id, event_at_ms, engagement_state_after, visibility_state_after)
-       VALUES (?, ?, 'state_changed', 'read', ?, ?, 'read', ?)`
-    );
-
-    const markRead = db.transaction(() => {
-      updateDelivery.run(delivery.id);
-      insertEvent.run(
-        evtId,
-        delivery.id,
-        actor.id,
-        ts,
-        delivery.visibility_state
-      );
-    });
-    markRead();
-
-    delivery.engagement_state = "read";
-  }
+  // Determine if we should mark as read — but defer the mutation until
+  // after the response is fully built (see bottom of handler).
+  const shouldMarkRead = !peek && delivery.engagement_state === "unread";
 
   // Get message details
   const msg = db
@@ -272,13 +248,24 @@ inboxRoutes.get("/:messageId", (c) => {
     metadata_json: string | null;
   }>;
 
-  const references = refs.map((r) => ({
-    kind: r.ref_kind,
-    value: r.ref_value,
-    label: r.label || null,
-    mime_type: r.mime_type || null,
-    metadata: r.metadata_json ? JSON.parse(r.metadata_json) : null,
-  }));
+  const references = refs.map((r) => {
+    let metadata: unknown = null;
+    if (r.metadata_json) {
+      try {
+        metadata = JSON.parse(r.metadata_json);
+      } catch {
+        // Malformed metadata_json — return null rather than throwing
+        metadata = null;
+      }
+    }
+    return {
+      kind: r.ref_kind,
+      value: r.ref_value,
+      label: r.label || null,
+      mime_type: r.mime_type || null,
+      metadata,
+    };
+  });
 
   // Get history (delivery events)
   const events = db
@@ -299,8 +286,10 @@ inboxRoutes.get("/:messageId", (c) => {
     visibility_state_after: string;
   }>;
 
-  return c.json({
-    ok: true,
+  // Build the full response BEFORE committing the read mutation so a
+  // render failure doesn't leave stale engagement state.
+  const responsePayload = {
+    ok: true as const,
     message: {
       message_id: msg.id,
       conversation_id: msg.conversation_id,
@@ -314,13 +303,41 @@ inboxRoutes.get("/:messageId", (c) => {
     },
     state: {
       view_kind: "received" as const,
-      engagement_state: delivery.engagement_state,
+      engagement_state: shouldMarkRead ? "read" as const : delivery.engagement_state,
       visibility_state: delivery.visibility_state,
       effective_role: delivery.effective_role,
       delivery_id: delivery.id,
     },
     history: events,
-  });
+  };
+
+  // Now perform the read mutation after the response is successfully built
+  if (shouldMarkRead) {
+    const ts = nowMs();
+    const evtId = generateId("evt_");
+
+    const updateDelivery = db.prepare(
+      "UPDATE deliveries SET engagement_state = 'read' WHERE id = ?"
+    );
+    const insertEvent = db.prepare(
+      `INSERT INTO delivery_events (id, delivery_id, event_type, change_kind, actor_address_id, event_at_ms, engagement_state_after, visibility_state_after)
+       VALUES (?, ?, 'state_changed', 'read', ?, ?, 'read', ?)`
+    );
+
+    const markRead = db.transaction(() => {
+      updateDelivery.run(delivery.id);
+      insertEvent.run(
+        evtId,
+        delivery.id,
+        actor.id,
+        ts,
+        delivery.visibility_state
+      );
+    });
+    markRead();
+  }
+
+  return c.json(responsePayload);
 });
 
 // ---------------------------------------------------------------------------

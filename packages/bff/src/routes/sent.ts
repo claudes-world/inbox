@@ -208,13 +208,24 @@ sentRoutes.get("/:messageId", (c) => {
     metadata_json: string | null;
   }>;
 
-  const references = refs.map((r) => ({
-    kind: r.ref_kind,
-    value: r.ref_value,
-    label: r.label || null,
-    mime_type: r.mime_type || null,
-    metadata: r.metadata_json ? JSON.parse(r.metadata_json) : null,
-  }));
+  const references = refs.map((r) => {
+    let metadata: unknown = null;
+    if (r.metadata_json) {
+      try {
+        metadata = JSON.parse(r.metadata_json);
+      } catch {
+        // Malformed metadata_json — return null rather than throwing
+        metadata = null;
+      }
+    }
+    return {
+      kind: r.ref_kind,
+      value: r.ref_value,
+      label: r.label || null,
+      mime_type: r.mime_type || null,
+      metadata,
+    };
+  });
 
   return c.json({
     ok: true,
