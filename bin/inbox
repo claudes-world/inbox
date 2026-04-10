@@ -10,6 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Source all lib modules in deterministic order
 for lib in "$SCRIPT_DIR"/lib/*.sh; do source "$lib"; done
 
+# Initialize experimental mode from env
+experimental_init
+
 # --- Global flag parsing ---
 # Extract --json and --help before subcommand routing
 _ARGS=()
@@ -60,6 +63,12 @@ Environment:
   INBOX_ADDRESS   Acting address (required)
   INBOX_DB        SQLite database path (required)
 EOF
+
+  # Show experimental surfaces if discovery mode is enabled
+  if experimental_is_enabled; then
+    echo ""
+    experimental_help
+  fi
 }
 
 if [[ $_SHOW_HELP -eq 1 && $# -eq 0 ]]; then
@@ -190,6 +199,11 @@ case "$_subcommand" in
     exit 0
     ;;
   *)
-    format_error "invalid_argument" "unknown command: $_subcommand" || exit $?
+    # Check if this is an experimental surface before reporting unknown command
+    if experimental_check "$_subcommand"; then
+      experimental_probe "$_subcommand" "verb" || exit $?
+    else
+      format_error "invalid_argument" "unknown command: $_subcommand" || exit $?
+    fi
     ;;
 esac
