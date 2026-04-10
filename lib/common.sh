@@ -76,7 +76,7 @@ json_escape() {
     hex=$(printf '\\u%04x' $i)
     s="${s//$char_val/$hex}"
   done
-  echo "$s"
+  printf '%s\n' "$s"
 }
 
 # error_json — Output a JSON error envelope to stdout.

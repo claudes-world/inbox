@@ -36,7 +36,8 @@ CREATE TABLE group_members (
   PRIMARY KEY (group_address_id, member_address_id),
   FOREIGN KEY (group_address_id) REFERENCES addresses(id) ON DELETE RESTRICT,
   FOREIGN KEY (member_address_id) REFERENCES addresses(id) ON DELETE RESTRICT,
-  CHECK (group_address_id <> member_address_id)
+  CHECK (group_address_id <> member_address_id),
+  UNIQUE (group_address_id, ordinal)
 ) STRICT;
 
 CREATE INDEX idx_group_members_group_ordinal
@@ -128,6 +129,9 @@ CREATE TABLE message_references (
   ref_value      TEXT NOT NULL,
   label          TEXT,
   mime_type      TEXT,
+  -- TODO(future-migration): add CHECK (metadata_json IS NULL OR json_valid(metadata_json))
+  -- once the minimum SQLite version is confirmed to have json_valid() (≥ 3.38.0 for reliable
+  -- JSON function support). Schema is frozen for MVP; this guard belongs in a 002-*.sql migration.
   metadata_json  TEXT,
 
   FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE RESTRICT,
@@ -190,6 +194,9 @@ CREATE TABLE delivery_events (
   engagement_state_after  TEXT NOT NULL CHECK (engagement_state_after IN ('unread', 'read', 'acknowledged')),
   visibility_state_after  TEXT NOT NULL CHECK (visibility_state_after IN ('active', 'hidden')),
 
+  -- TODO(future-migration): add CHECK (metadata_json IS NULL OR json_valid(metadata_json))
+  -- once the minimum SQLite version is confirmed to have json_valid() (≥ 3.38.0 for reliable
+  -- JSON function support). Schema is frozen for MVP; this guard belongs in a 002-*.sql migration.
   metadata_json           TEXT,
 
   FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON DELETE RESTRICT,
@@ -211,7 +218,12 @@ CREATE TABLE sent_items (
                     CHECK (visibility_state IN ('active', 'hidden')),
   hidden_at_ms      INTEGER,
 
-  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE RESTRICT
+  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE RESTRICT,
+
+  CHECK (
+    (visibility_state = 'hidden' AND hidden_at_ms IS NOT NULL)
+    OR (visibility_state = 'active' AND hidden_at_ms IS NULL)
+  )
 ) STRICT;
 
 CREATE INDEX idx_sent_items_visibility

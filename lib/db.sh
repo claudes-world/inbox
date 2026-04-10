@@ -75,9 +75,15 @@ db_query_json() {
   printf '%s\n' "PRAGMA foreign_keys = ON;" "$1" | sqlite3 -json "$INBOX_DB"
 }
 
-# db_transaction — Run SQL statements inside BEGIN/COMMIT with ROLLBACK on failure.
+# db_transaction — Run SQL statements inside BEGIN TRANSACTION/COMMIT with ROLLBACK on failure.
 # Usage: db_transaction "INSERT ...; UPDATE ...;"
-# Returns 0 on success, 1 on failure (after rollback).
+# Returns 0 on success, 1 on failure (after rollback attempt).
+#
+# Safety: -bail causes sqlite3 to exit immediately on any error, before reaching
+# COMMIT, so SQLite auto-rolls back the pending transaction on process exit.
+# As a belt-and-suspenders measure we also attempt an explicit ROLLBACK in case
+# sqlite3 exits cleanly after a non-fatal warning that still left the transaction
+# open (e.g. a soft error that -bail did not catch).
 db_transaction() {
   if [[ -z "${INBOX_DB:-}" ]]; then
     echo "error: INBOX_DB is not set" >&2
@@ -86,17 +92,20 @@ db_transaction() {
 
   local sql="$1"
   local full_sql
-  full_sql="$(printf 'PRAGMA foreign_keys = ON;\nBEGIN;\n%s\nCOMMIT;\n' "$sql")"
+  full_sql="$(printf 'PRAGMA foreign_keys = ON;\nBEGIN TRANSACTION;\n%s\nCOMMIT;\n' "$sql")"
 
   local output
   if output=$(printf '%s' "$full_sql" | sqlite3 -bail "$INBOX_DB" 2>&1); then
     if [[ -n "$output" ]]; then
-      echo "$output"
+      printf '%s\n' "$output"
     fi
     return 0
   else
-    # Transaction failed — sqlite3 -bail auto-rolls back on process exit
-    echo "$output" >&2
+    # Transaction failed — sqlite3 -bail exited before COMMIT.
+    # SQLite auto-rolls back uncommitted transactions on connection close,
+    # but attempt an explicit ROLLBACK as belt-and-suspenders.
+    printf '%s\n' "$output" >&2
+    printf 'ROLLBACK;\n' | sqlite3 "$INBOX_DB" 2>/dev/null || true
     return 1
   fi
 }
