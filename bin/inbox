@@ -3,21 +3,193 @@ set -euo pipefail
 
 # inbox — CLI entrypoint for the Inbox messaging system
 # Usage: inbox <command> [options]
+# Global flags: --json, --help
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Source all lib modules in deterministic order
 for lib in "$SCRIPT_DIR"/lib/*.sh; do source "$lib"; done
 
-# Route to subcommand
-case "${1:-}" in
-  whoami|send|reply|list|read|ack|hide|unhide|sent|thread|directory|give-feedback|help|"")
-    # Will be wired in Phase 4
-    echo "inbox: command '${1:-help}' not yet implemented" >&2
-    exit 1
+# --- Global flag parsing ---
+# Extract --json and --help before subcommand routing
+_ARGS=()
+export INBOX_JSON_MODE=0
+_SHOW_HELP=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --json) INBOX_JSON_MODE=1 ;;
+    --help) _SHOW_HELP=1 ;;
+    *)      _ARGS+=("$arg") ;;
+  esac
+done
+
+set -- "${_ARGS[@]+"${_ARGS[@]}"}"
+
+# --- Help ---
+_show_help() {
+  cat <<'EOF'
+inbox — agent-to-agent messaging CLI
+
+Usage: inbox <command> [options] [--json]
+
+Commands:
+  whoami              Show acting identity
+  send                Send a new message
+  list                List inbox messages
+  read <msg_id>       Read a message
+  reply <msg_id>      Reply to a message
+  ack <msg_id>        Acknowledge a message
+  hide <msg_id>       Hide a message
+  unhide <msg_id>     Unhide a message
+  sent list           List sent messages
+  sent read <msg_id>  Read a sent message
+  sent hide <msg_id>  Hide a sent message
+  sent unhide <msg_id> Unhide a sent message
+  thread <cnv_id>     View conversation thread
+  directory list      List addresses
+  directory show      Show address details
+  directory members   List group members
+  give-feedback       Submit feature feedback
+
+Global flags:
+  --json    Output JSON to stdout (stderr silent)
+  --help    Show this help
+
+Environment:
+  INBOX_ADDRESS   Acting address (required)
+  INBOX_DB        SQLite database path (required)
+EOF
+}
+
+if [[ $_SHOW_HELP -eq 1 && $# -eq 0 ]]; then
+  _show_help
+  exit 0
+fi
+
+# --- Environment validation ---
+_validate_env() {
+  if [[ -z "${INBOX_ADDRESS:-}" ]]; then
+    format_error "invalid_argument" "INBOX_ADDRESS environment variable is not set" || exit $?
+  fi
+  if [[ -z "${INBOX_DB:-}" ]]; then
+    format_error "invalid_argument" "INBOX_DB environment variable is not set" || exit $?
+  fi
+}
+
+# --- DB initialization ---
+_ensure_db() {
+  if ! db_init 2>/dev/null; then
+    format_error "internal_error" "failed to initialize database" || exit $?
+  fi
+}
+
+# --- Subcommand routing ---
+_subcommand="${1:-}"
+
+if [[ -z "$_subcommand" ]]; then
+  if [[ "$INBOX_JSON_MODE" == "1" ]]; then
+    error_json "invalid_argument" "no command specified"
+    exit "$EXIT_INVALID_ARGUMENT"
+  else
+    _show_help
+    exit "$EXIT_INVALID_ARGUMENT"
+  fi
+fi
+
+shift
+
+case "$_subcommand" in
+  whoami)
+    _validate_env
+    _ensure_db
+    cmd_whoami "$@"
+    ;;
+  send)
+    _validate_env
+    _ensure_db
+    cmd_send "$@"
+    ;;
+  list)
+    _validate_env
+    _ensure_db
+    cmd_list "$@"
+    ;;
+  read)
+    _validate_env
+    _ensure_db
+    cmd_read "$@"
+    ;;
+  reply)
+    _validate_env
+    _ensure_db
+    cmd_reply "$@"
+    ;;
+  ack)
+    _validate_env
+    _ensure_db
+    cmd_ack "$@"
+    ;;
+  hide)
+    _validate_env
+    _ensure_db
+    cmd_hide "$@"
+    ;;
+  unhide)
+    _validate_env
+    _ensure_db
+    cmd_unhide "$@"
+    ;;
+  sent)
+    _validate_env
+    _ensure_db
+    _sent_sub="${1:-}"
+    if [[ -z "$_sent_sub" ]]; then
+      format_error "invalid_argument" "sent requires a subcommand: list, read, hide, unhide" || exit $?
+    fi
+    shift
+    case "$_sent_sub" in
+      list)   cmd_sent_list "$@" ;;
+      read)   cmd_sent_read "$@" ;;
+      hide)   cmd_sent_hide "$@" ;;
+      unhide) cmd_sent_unhide "$@" ;;
+      *)
+        format_error "invalid_argument" "unknown sent subcommand: $_sent_sub" || exit $?
+        ;;
+    esac
+    ;;
+  thread)
+    _validate_env
+    _ensure_db
+    cmd_thread "$@"
+    ;;
+  directory)
+    _validate_env
+    _ensure_db
+    _dir_sub="${1:-}"
+    if [[ -z "$_dir_sub" ]]; then
+      format_error "invalid_argument" "directory requires a subcommand: list, show, members" || exit $?
+    fi
+    shift
+    case "$_dir_sub" in
+      list)    cmd_directory_list "$@" ;;
+      show)    cmd_directory_show "$@" ;;
+      members) cmd_directory_members "$@" ;;
+      *)
+        format_error "invalid_argument" "unknown directory subcommand: $_dir_sub" || exit $?
+        ;;
+    esac
+    ;;
+  give-feedback)
+    _validate_env
+    _ensure_db
+    cmd_give_feedback "$@"
+    ;;
+  help)
+    _show_help
+    exit 0
     ;;
   *)
-    echo "inbox: unknown command '$1'" >&2
-    exit 1
+    format_error "invalid_argument" "unknown command: $_subcommand" || exit $?
     ;;
 esac
