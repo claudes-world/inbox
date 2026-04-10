@@ -30,7 +30,7 @@ db_init() {
       echo "error: schema file not found: $schema_file" >&2
       return 1
     fi
-    sqlite3 "$INBOX_DB" < "$schema_file" >/dev/null
+    sqlite3 "$INBOX_DB" < "$schema_file" >/dev/null || return 1
   fi
 
   return 0
@@ -43,7 +43,7 @@ db_exec() {
     echo "error: INBOX_DB is not set" >&2
     return 1
   fi
-  sqlite3 "$INBOX_DB" "PRAGMA foreign_keys = ON; $1"
+  printf '%s\n' "PRAGMA foreign_keys = ON;" "$1" | sqlite3 "$INBOX_DB"
 }
 
 # db_query — Run a query against $INBOX_DB, return results.
@@ -59,9 +59,9 @@ db_query() {
   shift
 
   if [[ "${1:-}" == "-json" ]]; then
-    sqlite3 -json "$INBOX_DB" "PRAGMA foreign_keys = ON; $sql"
+    printf '%s\n' "PRAGMA foreign_keys = ON;" "$sql" | sqlite3 -json "$INBOX_DB"
   else
-    sqlite3 -separator '|' "$INBOX_DB" "PRAGMA foreign_keys = ON; $sql"
+    printf '%s\n' "PRAGMA foreign_keys = ON;" "$sql" | sqlite3 -separator '|' "$INBOX_DB"
   fi
 }
 
@@ -72,7 +72,7 @@ db_query_json() {
     echo "error: INBOX_DB is not set" >&2
     return 1
   fi
-  sqlite3 -json "$INBOX_DB" "PRAGMA foreign_keys = ON; $1"
+  printf '%s\n' "PRAGMA foreign_keys = ON;" "$1" | sqlite3 -json "$INBOX_DB"
 }
 
 # db_transaction — Run SQL statements inside BEGIN/COMMIT with ROLLBACK on failure.
@@ -89,7 +89,7 @@ db_transaction() {
   full_sql="$(printf 'PRAGMA foreign_keys = ON;\nBEGIN;\n%s\nCOMMIT;\n' "$sql")"
 
   local output
-  if output=$(sqlite3 -bail "$INBOX_DB" "$full_sql" 2>&1); then
+  if output=$(printf '%s' "$full_sql" | sqlite3 -bail "$INBOX_DB" 2>&1); then
     if [[ -n "$output" ]]; then
       echo "$output"
     fi
@@ -111,7 +111,7 @@ db_exists() {
   fi
 
   local result
-  result=$(sqlite3 "$INBOX_DB" "PRAGMA foreign_keys = ON; SELECT CASE WHEN EXISTS($1) THEN 1 ELSE 0 END;")
+  result=$(printf '%s\n' "PRAGMA foreign_keys = ON;" "SELECT CASE WHEN EXISTS($1) THEN 1 ELSE 0 END;" | sqlite3 "$INBOX_DB")
   [[ "$result" == "1" ]]
 }
 
@@ -123,5 +123,5 @@ db_count() {
     return 1
   fi
 
-  sqlite3 "$INBOX_DB" "PRAGMA foreign_keys = ON; $1"
+  printf '%s\n' "PRAGMA foreign_keys = ON;" "$1" | sqlite3 "$INBOX_DB"
 }

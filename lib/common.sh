@@ -68,9 +68,9 @@ error_json() {
   local target="${3:-null}"
   local details="${4:-null}"
 
-  # Quote target if non-null
+  # Quote target if non-null (escape first to prevent JSON injection)
   if [[ "$target" != "null" ]]; then
-    target="\"$target\""
+    target="\"$(json_escape "$target")\""
   fi
   # Details should be raw JSON or null
   if [[ "$details" != "null" && "$details" != "{"* && "$details" != "["* ]]; then

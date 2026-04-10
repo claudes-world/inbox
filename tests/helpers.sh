@@ -71,10 +71,12 @@ assert_exit_code() {
   local expected="$1"
   shift
   local actual
+  local _errexit_was_set=0
+  [[ $- == *e* ]] && _errexit_was_set=1
   set +e
   "$@" >/dev/null 2>&1
   actual=$?
-  set -e
+  [[ "$_errexit_was_set" -eq 1 ]] && set -e
 
   if [[ "$actual" -eq "$expected" ]]; then
     return 0

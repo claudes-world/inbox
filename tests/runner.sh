@@ -14,6 +14,10 @@ export VERBOSE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --gate)
+      if [[ $# -lt 2 ]]; then
+        echo "error: --gate requires a value" >&2
+        exit 1
+      fi
       GATE="$2"
       shift 2
       ;;
@@ -57,7 +61,7 @@ for test_file in "${test_files[@]}"; do
   # Each test file should set TEST_GATE=N at the top
   if [[ -n "$GATE" ]]; then
     # Check if this file declares a matching gate
-    file_gate=$(grep -oP 'TEST_GATE=\K\d+' "$test_file" 2>/dev/null || echo "")
+    file_gate=$(grep -o 'TEST_GATE=[0-9]*' "$test_file" 2>/dev/null | cut -d= -f2 || echo "")
     if [[ "$file_gate" != "$GATE" ]]; then
       continue
     fi
