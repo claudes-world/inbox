@@ -85,6 +85,7 @@ export const whoamiFixture: WhoamiResponse = {
   kind: "agent",
   display_name: "Project Manager Alpha",
   is_active: true,
+  is_listed: true,
   db_path: "/var/lib/inbox/inbox.db",
 };
 
@@ -172,6 +173,12 @@ export const replyFixture: ReplyResponse = {
   parent_message_id: "msg_read_001",
   sender: "eng-manager@vps-1",
   resolved_recipient_count: 2,
+  resolution_summary: {
+    logical_recipient_count: 2,
+    resolved_recipient_count: 2,
+    skipped_inactive_member_count: 0,
+    deduped_recipient_count: 0,
+  },
   sent_item_created: true,
 };
 
@@ -329,6 +336,8 @@ export const notFoundError: ErrorEnvelope = {
   error: {
     code: "not_found",
     message: "Message not found",
+    target: null,
+    details: null,
   },
 };
 
@@ -337,6 +346,8 @@ export const invalidArgumentError: ErrorEnvelope = {
   error: {
     code: "invalid_argument",
     message: "ID must start with msg_",
+    target: null,
+    details: null,
   },
 };
 

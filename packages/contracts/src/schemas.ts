@@ -120,7 +120,8 @@ export const resolutionSummarySchema = z.object({
 export const errorDetailSchema = z.object({
   code: errorCodeSchema,
   message: z.string(),
-  details: z.record(z.unknown()).optional(),
+  target: z.string().nullable().default(null),
+  details: z.unknown().nullable().default(null),
 });
 
 export const errorEnvelopeSchema = z.object({
@@ -131,7 +132,7 @@ export const errorEnvelopeSchema = z.object({
 /** Experimental coming-soon error variant */
 export const comingSoonErrorSchema = z.object({
   ok: z.literal(false),
-  experimental: z.literal(true),
+  experimental: z.literal(true).optional(),
   error: z.object({
     code: z.literal("coming_soon"),
     message: z.string(),
@@ -155,6 +156,7 @@ export const whoamiResponseSchema = z.object({
   kind: addressKindSchema,
   display_name: z.string().nullable(),
   is_active: z.boolean(),
+  is_listed: z.boolean(),
   db_path: z.string(),
 });
 
@@ -225,6 +227,7 @@ export const replyResponseSchema = z.object({
   parent_message_id: messageId,
   sender: addressStr,
   resolved_recipient_count: z.number().int().positive(),
+  resolution_summary: resolutionSummarySchema,
   sent_item_created: z.boolean(),
 });
 
@@ -282,7 +285,9 @@ export const threadItemSchema = z.object({
   view_kind: viewKindSchema,
   engagement_state: engagementStateSchema.optional(),
   visibility_state: visibilityStateSchema,
-  body_preview: z.string(),
+  body_preview: z.string().optional(),
+  body: z.string().optional(),
+  references: z.array(referenceSchema).optional(),
 });
 
 /** inbox thread */
