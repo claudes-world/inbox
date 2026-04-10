@@ -98,17 +98,18 @@ experimental_probe() {
     format_error "invalid_argument" "feature name is required for experimental probe" || return $?
   fi
 
-  local feedback_cmd="inbox give-feedback --feature $feature --kind $kind --wanted \"<what you wanted to do>\""
+  local feedback_cmd_text="inbox give-feedback --feature $feature --kind $kind --wanted \"<what you wanted to do>\""
+  local feedback_cmd_json="inbox give-feedback --feature $feature --kind $kind --wanted \\\"<what you wanted to do>\\\""
 
   if [[ "$INBOX_JSON_MODE" == "1" ]]; then
     local details
-    details=$(printf '{"feature":"%s","feedback_command":"%s"}' "$feature" "$feedback_cmd")
+    details=$(printf '{"feature":"%s","feedback_command":"%s"}' "$feature" "$feedback_cmd_json")
     error_json "coming_soon" "feature coming soon" "null" "$details"
   else
     echo "feature coming soon: $feature"
     echo ""
     echo "please describe how you would like to use this '$feature' feature in your workflow by submitting feedback:"
-    echo "  $feedback_cmd"
+    echo "  $feedback_cmd_text"
   fi
 
   return "$EXIT_COMING_SOON"
