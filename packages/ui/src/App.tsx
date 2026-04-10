@@ -16,6 +16,7 @@ import { SearchScreen } from "./screens/SearchScreen.js";
 import { ThreadTreeScreen } from "./screens/ThreadTreeScreen.js";
 import { EventInspectorScreen } from "./screens/EventInspectorScreen.js";
 import { VisibilityMatrixScreen } from "./screens/VisibilityMatrixScreen.js";
+import { GraphScreen } from "./screens/GraphScreen.js";
 
 function NavLink({
   hash,
@@ -167,6 +168,12 @@ export function App() {
       );
     }
 
+    if (path === "/graph") {
+      return (
+        <GraphScreen address={address} navigate={navigate} />
+      );
+    }
+
     // Default: Inbox
     return <InboxScreen address={address} navigate={navigate} />;
   };
@@ -240,6 +247,12 @@ export function App() {
               hash="/debug/visibility"
               currentHash={path}
               label="Visibility"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/graph"
+              currentHash={path}
+              label="Graph"
               navigate={navigate}
             />
           </nav>
