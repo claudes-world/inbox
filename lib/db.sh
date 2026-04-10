@@ -77,18 +77,51 @@ db_query_json() {
 
 # db_transaction — Run SQL statements inside BEGIN/COMMIT with ROLLBACK on failure.
 # Usage: db_transaction "INSERT ...; UPDATE ...;"
+# Returns 0 on success, 1 on failure (after rollback).
 db_transaction() {
-  echo "not implemented" >&2; return 1
+  if [[ -z "${INBOX_DB:-}" ]]; then
+    echo "error: INBOX_DB is not set" >&2
+    return 1
+  fi
+
+  local sql="$1"
+  local full_sql
+  full_sql="$(printf 'PRAGMA foreign_keys = ON;\nBEGIN;\n%s\nCOMMIT;\n' "$sql")"
+
+  local output
+  if output=$(sqlite3 "$INBOX_DB" "$full_sql" 2>&1); then
+    if [[ -n "$output" ]]; then
+      echo "$output"
+    fi
+    return 0
+  else
+    # Transaction failed — attempt explicit rollback in case BEGIN succeeded
+    sqlite3 "$INBOX_DB" "ROLLBACK;" 2>/dev/null || true
+    echo "$output" >&2
+    return 1
+  fi
 }
 
-# db_exists — Check if a row exists. Returns 0 if exists, 1 if not.
-# Usage: db_exists "SELECT 1 FROM ... WHERE ..."
+# db_exists — Check if a row exists. Returns 0 (true) if at least one row, 1 (false) if none.
+# Usage: db_exists "SELECT 1 FROM ... WHERE ... LIMIT 1"
 db_exists() {
-  echo "not implemented" >&2; return 1
+  if [[ -z "${INBOX_DB:-}" ]]; then
+    echo "error: INBOX_DB is not set" >&2
+    return 1
+  fi
+
+  local result
+  result=$(sqlite3 "$INBOX_DB" "PRAGMA foreign_keys = ON; SELECT CASE WHEN EXISTS($1) THEN 1 ELSE 0 END;")
+  [[ "$result" == "1" ]]
 }
 
-# db_count — Return count from a query.
+# db_count — Return count from a query (prints the number to stdout).
 # Usage: db_count "SELECT count(*) FROM ..."
 db_count() {
-  echo "not implemented" >&2; return 1
+  if [[ -z "${INBOX_DB:-}" ]]; then
+    echo "error: INBOX_DB is not set" >&2
+    return 1
+  fi
+
+  sqlite3 "$INBOX_DB" "PRAGMA foreign_keys = ON; $1"
 }
