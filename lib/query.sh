@@ -204,7 +204,16 @@ query_sent_read() {
   safe_body=$(json_escape "$m_body")
 
   local parent_json="null"
-  [[ -n "$m_parent" ]] && parent_json="\"$m_parent\""
+  if [[ -n "$m_parent" ]]; then
+    # Check if parent is visible to actor (has delivery or sent_item)
+    local safe_parent="$(sql_escape "$m_parent")"
+    local safe_actor="$(sql_escape "$actor_addr_id")"
+    local parent_visible
+    parent_visible=$(db_query "SELECT 1 FROM deliveries WHERE message_id='$safe_parent' AND recipient_address_id='$safe_actor' UNION SELECT 1 FROM sent_items si JOIN messages m ON si.message_id=m.id WHERE m.id='$safe_parent' AND m.sender_address_id='$safe_actor' LIMIT 1")
+    if [[ -n "$parent_visible" ]]; then
+      parent_json="\"$m_parent\""
+    fi
+  fi
 
   success_json "\"message\":{\"message_id\":\"$m_id\",\"conversation_id\":\"$m_cnv\",\"parent_message_id\":$parent_json,\"sender\":\"$safe_sender_str\",\"subject\":\"$safe_subj\",\"body\":\"$safe_body\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"references\":$refs_json},\"state\":{\"view_kind\":\"sent\",\"visibility_state\":\"$s_vis\"}"
 }

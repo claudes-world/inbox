@@ -677,6 +677,8 @@ do_reply() {
     cc_addr_ids=$(echo "$audience" | grep '^cc:' | sed 's/^cc://')
   else
     # Default audience = original sender only
+    # Note: actor is NOT excluded in non-all reply. Self-delivery is permitted
+    # per MVP design — replying to your own message sends to yourself.
     local original_sender
     original_sender=$(db_query "SELECT sender_address_id FROM messages WHERE id = '$target_msg_id';")
 
