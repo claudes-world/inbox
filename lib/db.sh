@@ -30,7 +30,7 @@ db_init() {
       echo "error: schema file not found: $schema_file" >&2
       return 1
     fi
-    sqlite3 "$INBOX_DB" < "$schema_file"
+    sqlite3 "$INBOX_DB" < "$schema_file" >/dev/null
   fi
 
   return 0
