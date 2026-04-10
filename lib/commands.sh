@@ -2,6 +2,15 @@
 # lib/commands.sh — CLI command handlers: wire library functions to CLI interface.
 # Each cmd_* function parses command-specific flags, validates, calls library, formats output.
 
+# require_flag_value — Guard: ensure a value flag has a following argument.
+# Usage: require_flag_value "$1" "$#" || exit $?
+require_flag_value() {
+  local flag="$1" argc="$2"
+  if [[ "$argc" -lt 2 ]]; then
+    format_error "invalid_argument" "flag $flag requires a value" || return $?
+  fi
+}
+
 # ============================================================================
 # cmd_whoami — Resolve actor, output identity info.
 # ============================================================================
@@ -20,10 +29,13 @@ cmd_whoami() {
   local address="${local_part}@${host}"
 
   local dn_json="null"
-  [[ -n "$display_name" ]] && dn_json="\"$display_name\""
+  [[ -n "$display_name" ]] && dn_json="\"$(json_escape "$display_name")\""
+
+  local safe_db_path
+  safe_db_path="$(json_escape "$INBOX_DB")"
 
   local result
-  result=$(success_json "\"address\":\"$address\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"db_path\":\"$INBOX_DB\"")
+  result=$(success_json "\"address\":\"$address\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"db_path\":\"$safe_db_path\"")
 
   format_output "$result" format_whoami
 }
@@ -39,13 +51,14 @@ cmd_send() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --to)      to_addrs="${to_addrs:+$to_addrs,}$2"; shift 2 ;;
-      --cc)      cc_addrs="${cc_addrs:+$cc_addrs,}$2"; shift 2 ;;
-      --subject) subject="$2"; shift 2 ;;
-      --body)    body_flag="$2"; body_flag_set=1; shift 2 ;;
-      --body-file) body_file="$2"; shift 2 ;;
-      --urgency) urgency="$2"; shift 2 ;;
+      --to)      require_flag_value "$1" "$#" || exit $?; to_addrs="${to_addrs:+$to_addrs,}$2"; shift 2 ;;
+      --cc)      require_flag_value "$1" "$#" || exit $?; cc_addrs="${cc_addrs:+$cc_addrs,}$2"; shift 2 ;;
+      --subject) require_flag_value "$1" "$#" || exit $?; subject="$2"; shift 2 ;;
+      --body)    require_flag_value "$1" "$#" || exit $?; body_flag="$2"; body_flag_set=1; shift 2 ;;
+      --body-file) require_flag_value "$1" "$#" || exit $?; body_file="$2"; shift 2 ;;
+      --urgency) require_flag_value "$1" "$#" || exit $?; urgency="$2"; shift 2 ;;
       --ref)
+        require_flag_value "$1" "$#" || exit $?
         local _rk="" _rv=""
         REF_KIND="" REF_VALUE=""
         parse_ref "$2" || exit $?
@@ -54,6 +67,7 @@ cmd_send() {
         shift 2
         ;;
       --ref-file)
+        require_flag_value "$1" "$#" || exit $?
         REF_KIND="" REF_VALUE=""
         parse_ref_file "$2" || exit $?
         _REF_KINDS+=("$REF_KIND")
@@ -119,21 +133,24 @@ cmd_list() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --state)      state="$2"; shift 2 ;;
-      --visibility) visibility="$2"; shift 2 ;;
+      --state)      require_flag_value "$1" "$#" || exit $?; state="$2"; shift 2 ;;
+      --visibility) require_flag_value "$1" "$#" || exit $?; visibility="$2"; shift 2 ;;
       --since)
+        require_flag_value "$1" "$#" || exit $?
         PARSED_TIME_MS=""
         parse_time_filter "$2" "since" || exit $?
         since_ms="$PARSED_TIME_MS"
         shift 2
         ;;
       --until)
+        require_flag_value "$1" "$#" || exit $?
         PARSED_TIME_MS=""
         parse_time_filter "$2" "until" || exit $?
         until_ms="$PARSED_TIME_MS"
         shift 2
         ;;
       --limit)
+        require_flag_value "$1" "$#" || exit $?
         parse_limit "$2" || exit $?
         limit="$PARSED_LIMIT"
         shift 2
@@ -252,7 +269,7 @@ cmd_read() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --peek)    peek=1; shift ;;
-      --history) history_count="$2"; shift 2 ;;
+      --history) require_flag_value "$1" "$#" || exit $?; history_count="$2"; shift 2 ;;
       *) format_error "invalid_argument" "unknown flag: $1" || exit $? ;;
     esac
   done
@@ -354,7 +371,11 @@ cmd_read() {
 
     local ref_item="{\"kind\":\"$r_kind\",\"value\":\"$safe_r_value\""
     [[ -n "$r_label" ]] && { local sl="${r_label//\\/\\\\}"; sl="${sl//\"/\\\"}"; ref_item+=",\"label\":\"$sl\""; } || ref_item+=",\"label\":null"
-    ref_item+=",\"mime_type\":${r_mime:+\"$r_mime\"}${r_mime:-null}"
+    if [[ -n "$r_mime" ]]; then
+      ref_item+=",\"mime_type\":\"$(json_escape "$r_mime")\""
+    else
+      ref_item+=",\"mime_type\":null"
+    fi
     ref_item+=",\"metadata\":${r_meta:-null}}"
 
     [[ $first_ref -eq 1 ]] && { refs_json+="$ref_item"; first_ref=0; } || refs_json+=",$ref_item"
@@ -362,9 +383,10 @@ cmd_read() {
   refs_json+="]"
 
   # Escape message fields
-  local safe_subj="${m_subj//\\/\\\\}"; safe_subj="${safe_subj//\"/\\\"}"
-  local safe_body="${m_body//\\/\\\\}"; safe_body="${safe_body//\"/\\\"}"
-  safe_body="${safe_body//$'\n'/\\n}"
+  local safe_subj
+  safe_subj="$(json_escape "$m_subj")"
+  local safe_body
+  safe_body="$(json_escape "$m_body")"
 
   local parent_json="null"
   [[ -n "$m_parent" ]] && parent_json="\"$m_parent\""
@@ -399,13 +421,14 @@ cmd_reply() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --all)     all_flag=1; shift ;;
-      --to)      to_addrs="${to_addrs:+$to_addrs,}$2"; shift 2 ;;
-      --cc)      cc_addrs="${cc_addrs:+$cc_addrs,}$2"; shift 2 ;;
-      --subject) subject="$2"; subject_set=1; shift 2 ;;
-      --body)    body_flag="$2"; body_flag_set=1; shift 2 ;;
-      --body-file) body_file="$2"; shift 2 ;;
-      --urgency) urgency="$2"; shift 2 ;;
+      --to)      require_flag_value "$1" "$#" || exit $?; to_addrs="${to_addrs:+$to_addrs,}$2"; shift 2 ;;
+      --cc)      require_flag_value "$1" "$#" || exit $?; cc_addrs="${cc_addrs:+$cc_addrs,}$2"; shift 2 ;;
+      --subject) require_flag_value "$1" "$#" || exit $?; subject="$2"; subject_set=1; shift 2 ;;
+      --body)    require_flag_value "$1" "$#" || exit $?; body_flag="$2"; body_flag_set=1; shift 2 ;;
+      --body-file) require_flag_value "$1" "$#" || exit $?; body_file="$2"; shift 2 ;;
+      --urgency) require_flag_value "$1" "$#" || exit $?; urgency="$2"; shift 2 ;;
       --ref)
+        require_flag_value "$1" "$#" || exit $?
         REF_KIND="" REF_VALUE=""
         parse_ref "$2" || exit $?
         _REF_KINDS+=("$REF_KIND")
@@ -413,6 +436,7 @@ cmd_reply() {
         shift 2
         ;;
       --ref-file)
+        require_flag_value "$1" "$#" || exit $?
         REF_KIND="" REF_VALUE=""
         parse_ref_file "$2" || exit $?
         _REF_KINDS+=("$REF_KIND")
@@ -573,20 +597,23 @@ cmd_sent_list() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --visibility) visibility="$2"; shift 2 ;;
+      --visibility) require_flag_value "$1" "$#" || exit $?; visibility="$2"; shift 2 ;;
       --since)
+        require_flag_value "$1" "$#" || exit $?
         PARSED_TIME_MS=""
         parse_time_filter "$2" "since" || exit $?
         since_ms="$PARSED_TIME_MS"
         shift 2
         ;;
       --until)
+        require_flag_value "$1" "$#" || exit $?
         PARSED_TIME_MS=""
         parse_time_filter "$2" "until" || exit $?
         until_ms="$PARSED_TIME_MS"
         shift 2
         ;;
       --limit)
+        require_flag_value "$1" "$#" || exit $?
         parse_limit "$2" || exit $?
         limit="$PARSED_LIMIT"
         shift 2
@@ -694,18 +721,21 @@ cmd_thread() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --since)
+        require_flag_value "$1" "$#" || exit $?
         PARSED_TIME_MS=""
         parse_time_filter "$2" "since" || exit $?
         since_ms="$PARSED_TIME_MS"
         shift 2
         ;;
       --until)
+        require_flag_value "$1" "$#" || exit $?
         PARSED_TIME_MS=""
         parse_time_filter "$2" "until" || exit $?
         until_ms="$PARSED_TIME_MS"
         shift 2
         ;;
       --limit)
+        require_flag_value "$1" "$#" || exit $?
         parse_limit "$2" || exit $?
         limit="$PARSED_LIMIT"
         shift 2
@@ -857,7 +887,7 @@ cmd_directory_list() {
     case "$1" in
       --include-inactive) include_inactive=1; shift ;;
       --include-unlisted) include_unlisted=1; shift ;;
-      --kind)             kind_filter="$2"; shift 2 ;;
+      --kind)             require_flag_value "$1" "$#" || exit $?; kind_filter="$2"; shift 2 ;;
       *) format_error "invalid_argument" "unknown flag: $1" || exit $? ;;
     esac
   done
@@ -899,9 +929,9 @@ cmd_directory_list() {
     IFS='|' read -r lp host kind dn desc is_active is_listed classification <<< "$row"
 
     local addr="${lp}@${host}"
-    local dn_json="null"; [[ -n "$dn" ]] && dn_json="\"$dn\""
-    local desc_json="null"; [[ -n "$desc" ]] && desc_json="\"$desc\""
-    local class_json="null"; [[ -n "$classification" ]] && class_json="\"$classification\""
+    local dn_json="null"; [[ -n "$dn" ]] && dn_json="\"$(json_escape "$dn")\""
+    local desc_json="null"; [[ -n "$desc" ]] && desc_json="\"$(json_escape "$desc")\""
+    local class_json="null"; [[ -n "$classification" ]] && class_json="\"$(json_escape "$classification")\""
 
     local item="{\"address\":\"$addr\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"description\":$desc_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"classification\":$class_json}"
 
@@ -956,9 +986,9 @@ cmd_directory_show() {
   IFS='|' read -r lp a_host kind dn desc is_active is_listed classification <<< "$row"
 
   local addr="${lp}@${a_host}"
-  local dn_json="null"; [[ -n "$dn" ]] && dn_json="\"$dn\""
-  local desc_json="null"; [[ -n "$desc" ]] && desc_json="\"$desc\""
-  local class_json="null"; [[ -n "$classification" ]] && class_json="\"$classification\""
+  local dn_json="null"; [[ -n "$dn" ]] && dn_json="\"$(json_escape "$dn")\""
+  local desc_json="null"; [[ -n "$desc" ]] && desc_json="\"$(json_escape "$desc")\""
+  local class_json="null"; [[ -n "$classification" ]] && class_json="\"$(json_escape "$classification")\""
 
   local result
   result=$(success_json "\"address\":{\"address\":\"$addr\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"description\":$desc_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"classification\":$class_json}")
@@ -990,8 +1020,12 @@ cmd_directory_members() {
   local local_part="${address%%@*}"
   local host="${address#*@}"
 
+  local safe_local_part safe_host
+  safe_local_part="$(sql_escape "$local_part")"
+  safe_host="$(sql_escape "$host")"
+
   local addr_row
-  addr_row=$(db_query "SELECT id, kind FROM addresses WHERE local_part = '$local_part' AND host = '$host';")
+  addr_row=$(db_query "SELECT id, kind FROM addresses WHERE local_part = '$safe_local_part' AND host = '$safe_host';")
 
   if [[ -z "$addr_row" ]]; then
     format_error "not_found" "address not found: $address" "address" || exit $?
@@ -1040,10 +1074,10 @@ cmd_give_feedback() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --feature) feature="$2"; shift 2 ;;
-      --kind)    kind="$2"; shift 2 ;;
-      --wanted)  wanted="$2"; body_flag_set=1; shift 2 ;;
-      --wanted-file) body_file="$2"; shift 2 ;;
+      --feature) require_flag_value "$1" "$#" || exit $?; feature="$2"; shift 2 ;;
+      --kind)    require_flag_value "$1" "$#" || exit $?; kind="$2"; shift 2 ;;
+      --wanted)  require_flag_value "$1" "$#" || exit $?; wanted="$2"; body_flag_set=1; shift 2 ;;
+      --wanted-file) require_flag_value "$1" "$#" || exit $?; body_file="$2"; shift 2 ;;
       *) format_error "invalid_argument" "unknown flag: $1" || exit $? ;;
     esac
   done
