@@ -243,19 +243,21 @@ do_send() {
 
   # 4. Insert message references
   if [[ "$references_json" != "[]" && -n "$references_json" ]]; then
-    # Parse references JSON using sqlite3
+    # Parse references JSON using sqlite3 (escape single quotes for SQL literals)
+    local safe_sql_refs
+    safe_sql_refs="$(printf '%s' "$references_json" | sed "s/'/''/g")"
     local ref_count
-    ref_count=$(sqlite3 :memory: "SELECT json_array_length('$references_json');")
+    ref_count=$(printf "SELECT json_array_length('%s');\n" "$safe_sql_refs" | sqlite3 :memory:)
     local ref_i=0
     while [[ $ref_i -lt $ref_count ]]; do
       local ref_id
       ref_id=$(generate_id "ref_")
       local ref_kind ref_value ref_label ref_mime ref_meta
-      ref_kind=$(sqlite3 :memory: "SELECT json_extract('$references_json', '$[$ref_i].kind');")
-      ref_value=$(sqlite3 :memory: "SELECT json_extract('$references_json', '$[$ref_i].value');")
-      ref_label=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].label'), '');")
-      ref_mime=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].mime_type'), '');")
-      ref_meta=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].metadata'), '');")
+      ref_kind=$(printf "SELECT json_extract('%s', '\$[%d].kind');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_value=$(printf "SELECT json_extract('%s', '\$[%d].value');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_label=$(printf "SELECT COALESCE(json_extract('%s', '\$[%d].label'), '');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_mime=$(printf "SELECT COALESCE(json_extract('%s', '\$[%d].mime_type'), '');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_meta=$(printf "SELECT COALESCE(json_extract('%s', '\$[%d].metadata'), '');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
 
       local safe_ref_kind safe_ref_value safe_ref_label safe_ref_mime safe_ref_meta
       safe_ref_kind=$(sql_escape "$ref_kind")
@@ -549,19 +551,21 @@ do_send_in_conversation() {
 
   # Insert message references
   if [[ "$references_json" != "[]" && -n "$references_json" ]]; then
-    # Parse references JSON using sqlite3
+    # Parse references JSON using sqlite3 (escape single quotes for SQL literals)
+    local safe_sql_refs
+    safe_sql_refs="$(printf '%s' "$references_json" | sed "s/'/''/g")"
     local ref_count
-    ref_count=$(sqlite3 :memory: "SELECT json_array_length('$references_json');")
+    ref_count=$(printf "SELECT json_array_length('%s');\n" "$safe_sql_refs" | sqlite3 :memory:)
     local ref_i=0
     while [[ $ref_i -lt $ref_count ]]; do
       local ref_id
       ref_id=$(generate_id "ref_")
       local ref_kind ref_value ref_label ref_mime ref_meta
-      ref_kind=$(sqlite3 :memory: "SELECT json_extract('$references_json', '$[$ref_i].kind');")
-      ref_value=$(sqlite3 :memory: "SELECT json_extract('$references_json', '$[$ref_i].value');")
-      ref_label=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].label'), '');")
-      ref_mime=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].mime_type'), '');")
-      ref_meta=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].metadata'), '');")
+      ref_kind=$(printf "SELECT json_extract('%s', '\$[%d].kind');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_value=$(printf "SELECT json_extract('%s', '\$[%d].value');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_label=$(printf "SELECT COALESCE(json_extract('%s', '\$[%d].label'), '');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_mime=$(printf "SELECT COALESCE(json_extract('%s', '\$[%d].mime_type'), '');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
+      ref_meta=$(printf "SELECT COALESCE(json_extract('%s', '\$[%d].metadata'), '');\n" "$safe_sql_refs" "$ref_i" | sqlite3 :memory:)
 
       local safe_ref_kind safe_ref_value safe_ref_label safe_ref_mime safe_ref_meta
       safe_ref_kind=$(sql_escape "$ref_kind")
