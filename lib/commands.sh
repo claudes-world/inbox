@@ -206,8 +206,9 @@ cmd_list() {
     IFS='|' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
 
     # Get sender
-    local sender_id sender_str
-    sender_id=$(db_query "SELECT sender_address_id FROM messages WHERE id = '$m_id';")
+    local sender_id sender_str safe_m_id
+    safe_m_id="$(sql_escape "$m_id")"
+    sender_id=$(db_query "SELECT sender_address_id FROM messages WHERE id = '$safe_m_id';")
     sender_str=$(lookup_address_id_to_string "$sender_id")
 
     local safe_subj="${m_subj//\\/\\\\}"
@@ -267,6 +268,10 @@ cmd_read() {
     exit $rc
   }
 
+  # SQL-escape msg_id for direct SQL interpolation
+  local safe_msg_id
+  safe_msg_id="$(sql_escape "$msg_id")"
+
   # Do read (marks as read unless --peek)
   local read_result
   read_result=$(do_read "$msg_id" "$actor_id" "$peek") || {
@@ -297,7 +302,7 @@ cmd_read() {
   local msg_row
   msg_row=$(db_query "SELECT id, conversation_id, parent_message_id, sender_address_id,
       subject, body, sender_urgency, created_at_ms
-    FROM messages WHERE id = '$msg_id';")
+    FROM messages WHERE id = '$safe_msg_id';")
 
   local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
   IFS='|' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
@@ -313,7 +318,7 @@ cmd_read() {
   local pub_rows
   pub_rows=$(db_query "SELECT recipient_address_id, recipient_role
     FROM message_public_recipients
-    WHERE message_id = '$msg_id'
+    WHERE message_id = '$safe_msg_id'
     ORDER BY recipient_role, ordinal;")
 
   while IFS= read -r pr; do
@@ -337,7 +342,7 @@ cmd_read() {
   local first_ref=1
   local ref_rows
   ref_rows=$(db_query "SELECT ref_kind, ref_value, label, mime_type, metadata_json
-    FROM message_references WHERE message_id = '$msg_id' ORDER BY ordinal;")
+    FROM message_references WHERE message_id = '$safe_msg_id' ORDER BY ordinal;")
 
   while IFS= read -r rr; do
     [[ -z "$rr" ]] && continue
@@ -717,6 +722,10 @@ cmd_thread() {
     local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
   }
 
+  # SQL-escape cnv_id for direct SQL interpolation
+  local safe_cnv_id
+  safe_cnv_id="$(sql_escape "$cnv_id")"
+
   # Get visible message IDs for parent redaction
   local visible_ids
   visible_ids=$(resolve_thread_msg_ids "$cnv_id" "$actor_id")
@@ -732,7 +741,7 @@ cmd_thread() {
     FROM messages m
     LEFT JOIN deliveries d ON d.message_id = m.id AND d.recipient_address_id = '$actor_id'
     LEFT JOIN sent_items si ON si.message_id = m.id AND m.sender_address_id = '$actor_id'
-    WHERE m.conversation_id = '$cnv_id'
+    WHERE m.conversation_id = '$safe_cnv_id'
       AND (d.id IS NOT NULL OR si.message_id IS NOT NULL)
       $time_clause;")
 
@@ -749,7 +758,7 @@ cmd_thread() {
     FROM messages m
     LEFT JOIN deliveries d ON d.message_id = m.id AND d.recipient_address_id = '$actor_id'
     LEFT JOIN sent_items si ON si.message_id = m.id AND m.sender_address_id = '$actor_id'
-    WHERE m.conversation_id = '$cnv_id'
+    WHERE m.conversation_id = '$safe_cnv_id'
       AND (d.id IS NOT NULL OR si.message_id IS NOT NULL)
       $time_clause
     ORDER BY m.created_at_ms DESC, m.id DESC
@@ -859,6 +868,14 @@ cmd_directory_list() {
     local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
   }
 
+  # Validate --kind against allowed enum values
+  if [[ -n "$kind_filter" ]]; then
+    case "$kind_filter" in
+      agent|human|service|list) ;; # valid
+      *) format_error "invalid_argument" "invalid kind: $kind_filter" "kind" || exit $? ;;
+    esac
+  fi
+
   local where_clauses="1=1"
   [[ "$include_inactive" -eq 0 ]] && where_clauses="$where_clauses AND is_active = 1"
   [[ "$include_unlisted" -eq 0 ]] && where_clauses="$where_clauses AND is_listed = 1"
@@ -923,9 +940,13 @@ cmd_directory_show() {
   local local_part="${address%%@*}"
   local host="${address#*@}"
 
+  local safe_local_part safe_host
+  safe_local_part="$(sql_escape "$local_part")"
+  safe_host="$(sql_escape "$host")"
+
   local row
   row=$(db_query "SELECT local_part, host, kind, display_name, description, is_active, is_listed, classification
-    FROM addresses WHERE local_part = '$local_part' AND host = '$host';")
+    FROM addresses WHERE local_part = '$safe_local_part' AND host = '$safe_host';")
 
   if [[ -z "$row" ]]; then
     format_error "not_found" "address not found: $address" "address" || exit $?
