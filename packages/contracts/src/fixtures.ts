@@ -7,10 +7,16 @@
 import type {
   AddressSummary,
   ComingSoonError,
+  DeliveryEvent,
+  DeliveryEventListResponse,
   DirectoryListResponse,
   DirectoryMembersResponse,
   DirectoryShowResponse,
   ErrorEnvelope,
+  Experiment,
+  ExperimentListResponse,
+  FeedbackBoardResponse,
+  FeedbackEntry,
   GiveFeedbackResponse,
   ListResponse,
   MutationResponse,
@@ -349,6 +355,133 @@ export const invalidArgumentError: ErrorEnvelope = {
     message: "ID must start with msg_",
     target: null,
     details: null,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Experiments
+// ---------------------------------------------------------------------------
+
+export const experimentActive: Experiment = {
+  id: "exp_subject_tone_001",
+  name: "Subject line tone experiment",
+  description:
+    "Compare friendly vs formal subject phrasings for high-urgency messages.",
+  status: "active",
+  variants: [
+    { name: "friendly", weight: 50 },
+    { name: "formal", weight: 50 },
+  ],
+  start_ts: EARLIER_MS,
+  end_ts: null,
+  metrics: {
+    messages_sent: 142,
+    response_rate: 0.61,
+  },
+};
+
+export const experimentCompleted: Experiment = {
+  id: "exp_cta_placement_042",
+  name: "CTA placement",
+  description: "Measure reply rate when CTA is top vs bottom of body.",
+  status: "completed",
+  variants: [
+    { name: "top", weight: 50 },
+    { name: "bottom", weight: 50 },
+  ],
+  start_ts: EARLIER_MS - 86_400_000,
+  end_ts: NOW_MS - 86_400_000,
+  metrics: {
+    messages_sent: 500,
+    response_rate: 0.42,
+  },
+};
+
+export const experimentListFixture: ExperimentListResponse = {
+  items: [experimentActive, experimentCompleted],
+  returned_count: 2,
+};
+
+// ---------------------------------------------------------------------------
+// Feedback board
+// ---------------------------------------------------------------------------
+
+export const feedbackPositive: FeedbackEntry = {
+  id: "fbk_pos_001",
+  from_address: "eng-manager@vps-1",
+  subject: "Love the new thread view",
+  text: "Collapsing replies really helps when triaging long threads. Thanks!",
+  sentiment: "positive",
+  rating: 5,
+  created_ts: NOW_MS,
+  message_id: "msg_thread_001",
+};
+
+export const feedbackNegative: FeedbackEntry = {
+  id: "fbk_neg_002",
+  from_address: "ceo@org",
+  text: "Search is still missing. I can't find anything older than a week.",
+  sentiment: "negative",
+  rating: 2,
+  created_ts: EARLIER_MS,
+};
+
+export const feedbackBoardFixture: FeedbackBoardResponse = {
+  items: [feedbackPositive, feedbackNegative],
+  returned_count: 2,
+  summary: {
+    positive_count: 1,
+    neutral_count: 0,
+    negative_count: 1,
+    average_rating: 3.5,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Delivery events (inspector)
+// ---------------------------------------------------------------------------
+
+export const deliveryEventDelivered: DeliveryEvent = {
+  id: "evt_001",
+  delivery_id: "dly_001",
+  message_id: "msg_thread_001",
+  event_type: "delivered",
+  actor_address: "pm-alpha@vps-1",
+  from_state: null,
+  to_state: "unread",
+  created_ts: EARLIER_MS,
+};
+
+export const deliveryEventRead: DeliveryEvent = {
+  id: "evt_002",
+  delivery_id: "dly_001",
+  message_id: "msg_thread_001",
+  event_type: "read",
+  actor_address: "eng-manager@vps-1",
+  from_state: "unread",
+  to_state: "read",
+  created_ts: EARLIER_MS + 60_000,
+  metadata: { source: "ui", client: "cpc-web" },
+};
+
+export const deliveryEventAcknowledged: DeliveryEvent = {
+  id: "evt_003",
+  delivery_id: "dly_001",
+  message_id: "msg_thread_001",
+  event_type: "acknowledged",
+  actor_address: "eng-manager@vps-1",
+  from_state: "read",
+  to_state: "acknowledged",
+  created_ts: NOW_MS,
+};
+
+export const deliveryEventListFixture: DeliveryEventListResponse = {
+  items: [deliveryEventDelivered, deliveryEventRead, deliveryEventAcknowledged],
+  returned_count: 3,
+  filters: {
+    message_id: "msg_thread_001",
+    event_type: null,
+    actor_address: null,
   },
 };
 

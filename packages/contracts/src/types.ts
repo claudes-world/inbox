@@ -8,12 +8,22 @@ import type { z } from "zod";
 import type {
   addressSummarySchema,
   comingSoonErrorSchema,
+  deliveryEventListResponseSchema,
+  deliveryEventSchema,
+  deliveryEventTypeSchema,
   deliveryStateSchema,
   directoryListResponseSchema,
   directoryMembersResponseSchema,
   directoryShowResponseSchema,
   errorDetailSchema,
   errorEnvelopeSchema,
+  experimentListResponseSchema,
+  experimentSchema,
+  experimentStatusSchema,
+  experimentVariantSchema,
+  feedbackBoardResponseSchema,
+  feedbackEntrySchema,
+  feedbackSentimentSchema,
   giveFeedbackResponseSchema,
   listItemSchema,
   listResponseSchema,
@@ -82,6 +92,37 @@ export type DirectoryMembersResponse = z.infer<
   typeof directoryMembersResponseSchema
 >;
 export type GiveFeedbackResponse = z.infer<typeof giveFeedbackResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Experiments (feature flag / A/B test board)
+// ---------------------------------------------------------------------------
+
+export type ExperimentStatus = z.infer<typeof experimentStatusSchema>;
+export type ExperimentVariant = z.infer<typeof experimentVariantSchema>;
+export type Experiment = z.infer<typeof experimentSchema>;
+export type ExperimentListResponse = z.infer<
+  typeof experimentListResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
+// Feedback board
+// ---------------------------------------------------------------------------
+
+export type FeedbackSentiment = z.infer<typeof feedbackSentimentSchema>;
+export type FeedbackEntry = z.infer<typeof feedbackEntrySchema>;
+export type FeedbackBoardResponse = z.infer<typeof feedbackBoardResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Delivery events (event inspector)
+// ---------------------------------------------------------------------------
+
+// Note: DeliveryEventType is already exported from enums.ts with different
+// values. The inspector-facing event kind is re-named to avoid the collision.
+export type DeliveryEventKind = z.infer<typeof deliveryEventTypeSchema>;
+export type DeliveryEvent = z.infer<typeof deliveryEventSchema>;
+export type DeliveryEventListResponse = z.infer<
+  typeof deliveryEventListResponseSchema
+>;
 
 // ---------------------------------------------------------------------------
 // Discriminated union for all CLI responses

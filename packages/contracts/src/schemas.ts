@@ -335,3 +335,109 @@ export const giveFeedbackResponseSchema = z.object({
   feature: z.string(),
   recorded: z.boolean(),
 });
+
+// ---------------------------------------------------------------------------
+// Experiments (feature flag / A/B test discovery board)
+// ---------------------------------------------------------------------------
+
+export const experimentStatusSchema = z.enum([
+  "active",
+  "paused",
+  "completed",
+]);
+
+export const experimentVariantSchema = z.object({
+  name: z.string().min(1),
+  weight: z.number().int().min(0).max(100),
+});
+
+export const experimentSchema = z.object({
+  id: prefixedId("exp"),
+  name: z.string().min(1),
+  description: z.string(),
+  status: experimentStatusSchema,
+  variants: z.array(experimentVariantSchema).min(2),
+  start_ts: timestampMs,
+  end_ts: timestampMs.nullable(),
+  metrics: z
+    .object({
+      messages_sent: z.number().int().nonnegative(),
+      response_rate: z.number().min(0).max(1),
+    })
+    .optional(),
+});
+
+export const experimentListResponseSchema = z.object({
+  items: z.array(experimentSchema),
+  returned_count: z.number().int().nonnegative(),
+});
+
+// ---------------------------------------------------------------------------
+// Feedback board (user feedback entries with sentiment)
+// ---------------------------------------------------------------------------
+
+export const feedbackSentimentSchema = z.enum([
+  "positive",
+  "neutral",
+  "negative",
+]);
+
+export const feedbackEntrySchema = z.object({
+  id: feedbackId,
+  from_address: addressStr,
+  subject: z.string().optional(),
+  text: z.string(),
+  sentiment: feedbackSentimentSchema,
+  rating: z.number().int().min(1).max(5).optional(),
+  created_ts: timestampMs,
+  message_id: messageId.optional(),
+});
+
+export const feedbackBoardResponseSchema = z.object({
+  items: z.array(feedbackEntrySchema),
+  returned_count: z.number().int().nonnegative(),
+  summary: z.object({
+    positive_count: z.number().int().nonnegative(),
+    neutral_count: z.number().int().nonnegative(),
+    negative_count: z.number().int().nonnegative(),
+    average_rating: z.number().min(0).max(5).nullable(),
+  }),
+});
+
+// ---------------------------------------------------------------------------
+// Delivery events (event inspector for debugging)
+// ---------------------------------------------------------------------------
+
+export const deliveryEventTypeSchema = z.enum([
+  "delivered",
+  "read",
+  "acknowledged",
+  "replied",
+  "hidden",
+  "restored",
+  "failed",
+]);
+
+export const deliveryEventSchema = z.object({
+  id: prefixedId("evt"),
+  delivery_id: deliveryId,
+  message_id: messageId,
+  event_type: deliveryEventTypeSchema,
+  actor_address: addressStr,
+  from_state: z.string().nullable(),
+  to_state: z.string(),
+  created_ts: timestampMs,
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const deliveryEventListResponseSchema = z.object({
+  items: z.array(deliveryEventSchema),
+  returned_count: z.number().int().nonnegative(),
+  filters: z
+    .object({
+      message_id: z.string().nullable(),
+      event_type: deliveryEventTypeSchema.nullable(),
+      actor_address: z.string().nullable(),
+    })
+    .optional(),
+});

@@ -75,6 +75,19 @@ export {
   threadItemSchema,
   threadResponseSchema,
   whoamiResponseSchema,
+  // Experiments
+  experimentStatusSchema,
+  experimentVariantSchema,
+  experimentSchema,
+  experimentListResponseSchema,
+  // Feedback board
+  feedbackSentimentSchema,
+  feedbackEntrySchema,
+  feedbackBoardResponseSchema,
+  // Delivery events (inspector)
+  deliveryEventTypeSchema,
+  deliveryEventSchema,
+  deliveryEventListResponseSchema,
 } from "./schemas.js";
 
 // TypeScript types (zero-cost, type-only)
@@ -82,12 +95,22 @@ export type {
   AddressSummary,
   CliResponse,
   ComingSoonError,
+  DeliveryEvent,
+  DeliveryEventKind,
+  DeliveryEventListResponse,
   DeliveryState,
   DirectoryListResponse,
   DirectoryMembersResponse,
   DirectoryShowResponse,
   ErrorDetail,
   ErrorEnvelope,
+  Experiment,
+  ExperimentListResponse,
+  ExperimentStatus,
+  ExperimentVariant,
+  FeedbackBoardResponse,
+  FeedbackEntry,
+  FeedbackSentiment,
   GiveFeedbackResponse,
   ListItem,
   ListResponse,
