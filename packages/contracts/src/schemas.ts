@@ -105,6 +105,12 @@ export const referenceSchema = z.object({
   metadata: z.unknown().nullable(),
 });
 
+/** Compact reference (thread full-mode only emits kind + value) */
+export const threadReferenceSchema = z.object({
+  kind: refKindSchema,
+  value: z.string(),
+});
+
 /** Resolution summary */
 export const resolutionSummarySchema = z.object({
   logical_recipient_count: z.number().int().nonnegative(),
@@ -285,9 +291,10 @@ export const threadItemSchema = z.object({
   view_kind: viewKindSchema,
   engagement_state: engagementStateSchema.optional(),
   visibility_state: visibilityStateSchema,
+  effective_role: recipientRoleSchema.optional(),
   body_preview: z.string().optional(),
   body: z.string().optional(),
-  references: z.array(referenceSchema).optional(),
+  references: z.array(threadReferenceSchema).optional(),
 });
 
 /** inbox thread */

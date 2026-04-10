@@ -51,6 +51,7 @@ export {
   referenceSchema,
   resolutionSummarySchema,
   sentStateSchema,
+  threadReferenceSchema,
   // Error envelopes
   comingSoonErrorSchema,
   errorDetailSchema,
@@ -95,6 +96,7 @@ export type {
   ReadResponse,
   Reference,
   ReplyResponse,
+  ThreadReference,
   ResolutionSummary,
   SendResponse,
   SentListItem,

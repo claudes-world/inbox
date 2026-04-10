@@ -22,6 +22,7 @@ import type {
   readResponseSchema,
   referenceSchema,
   replyResponseSchema,
+  threadReferenceSchema,
   resolutionSummarySchema,
   sendResponseSchema,
   sentListItemSchema,
@@ -42,6 +43,7 @@ export type AddressSummary = z.infer<typeof addressSummarySchema>;
 export type DeliveryState = z.infer<typeof deliveryStateSchema>;
 export type SentState = z.infer<typeof sentStateSchema>;
 export type Reference = z.infer<typeof referenceSchema>;
+export type ThreadReference = z.infer<typeof threadReferenceSchema>;
 export type ResolutionSummary = z.infer<typeof resolutionSummarySchema>;
 
 // ---------------------------------------------------------------------------

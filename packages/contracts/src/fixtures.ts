@@ -276,6 +276,7 @@ export const threadFixture: ThreadResponse = {
       view_kind: "received",
       engagement_state: "read",
       visibility_state: "active",
+      effective_role: "to",
       body_preview: "Please send your weekly report...",
     },
     {
