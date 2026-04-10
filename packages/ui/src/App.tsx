@@ -13,6 +13,9 @@ import { DirectoryScreen } from "./screens/DirectoryScreen.js";
 import { HealthScreen } from "./screens/HealthScreen.js";
 import { ConfigScreen } from "./screens/ConfigScreen.js";
 import { SearchScreen } from "./screens/SearchScreen.js";
+import { ThreadTreeScreen } from "./screens/ThreadTreeScreen.js";
+import { EventInspectorScreen } from "./screens/EventInspectorScreen.js";
+import { VisibilityMatrixScreen } from "./screens/VisibilityMatrixScreen.js";
 
 function NavLink({
   hash,
@@ -55,6 +58,7 @@ export function App() {
   // Route matching
   const messageMatch = matchRoute("/message/:id", path);
   const threadMatch = matchRoute("/thread/:id", path);
+  const threadTreeMatch = matchRoute("/thread/:id/tree", path);
   const sentReadMatch = matchRoute("/sent/:id", path);
   const query = hashQuery(hash);
 
@@ -82,6 +86,16 @@ export function App() {
         <MessageReadScreen
           address={address}
           messageId={messageMatch.id}
+          navigate={navigate}
+        />
+      );
+    }
+
+    if (threadTreeMatch?.id) {
+      return (
+        <ThreadTreeScreen
+          address={address}
+          conversationId={threadTreeMatch.id}
           navigate={navigate}
         />
       );
@@ -139,6 +153,18 @@ export function App() {
 
     if (path === "/search") {
       return <SearchScreen address={address} navigate={navigate} />;
+    }
+
+    if (path === "/events") {
+      return (
+        <EventInspectorScreen address={address} navigate={navigate} />
+      );
+    }
+
+    if (path === "/debug/visibility") {
+      return (
+        <VisibilityMatrixScreen address={address} navigate={navigate} />
+      );
     }
 
     // Default: Inbox
@@ -201,6 +227,19 @@ export function App() {
               hash="/config"
               currentHash={path}
               label="Config"
+              navigate={navigate}
+            />
+            <span className="text-zinc-700 mx-0.5">|</span>
+            <NavLink
+              hash="/events"
+              currentHash={path}
+              label="Events"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/debug/visibility"
+              currentHash={path}
+              label="Visibility"
               navigate={navigate}
             />
           </nav>
