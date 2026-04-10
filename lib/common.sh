@@ -88,7 +88,7 @@ json_escape() {
   # silently drops the null and emits a warning. Callers should not pass
   # NUL-containing strings.
   local i char_val hex
-  for i in $(seq 1 31); do
+  for ((i=1; i<=31; i++)); do
     case $i in
       8|9|10|12|13) continue ;; # Already handled: \b \t \n \f \r
     esac
