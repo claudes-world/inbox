@@ -120,6 +120,14 @@ error_json() {
     "$code" "$message" "$target" "$details"
 }
 
+# sql_escape — Escape a string for safe interpolation into a single-quoted SQL literal.
+# Doubles every single quote so ' becomes ''.
+# Usage: sql_escape "value"   → echoes the escaped string (no surrounding quotes added)
+sql_escape() {
+  local value="${1:-}"
+  echo "${value//\'/\'\'}"
+}
+
 # success_json — Output a JSON success envelope to stdout.
 # Usage: success_json <additional_fields_json>
 # The additional_fields_json should NOT include outer braces — it will be merged into {"ok":true, ...}
