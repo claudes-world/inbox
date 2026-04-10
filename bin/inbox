@@ -10,8 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Source all lib modules in deterministic order
 for lib in "$SCRIPT_DIR"/lib/*.sh; do source "$lib"; done
 
-# Initialize experimental mode from env
+# Initialize experimental mode and telemetry from env
 experimental_init
+telemetry_init
 
 # --- Global flag parsing ---
 # Extract --json and --help before subcommand routing
@@ -108,102 +109,116 @@ fi
 
 shift
 
-case "$_subcommand" in
-  whoami)
-    _validate_env
-    _ensure_db
-    cmd_whoami "$@"
-    ;;
-  send)
-    _validate_env
-    _ensure_db
-    cmd_send "$@"
-    ;;
-  list)
-    _validate_env
-    _ensure_db
-    cmd_list "$@"
-    ;;
-  read)
-    _validate_env
-    _ensure_db
-    cmd_read "$@"
-    ;;
-  reply)
-    _validate_env
-    _ensure_db
-    cmd_reply "$@"
-    ;;
-  ack)
-    _validate_env
-    _ensure_db
-    cmd_ack "$@"
-    ;;
-  hide)
-    _validate_env
-    _ensure_db
-    cmd_hide "$@"
-    ;;
-  unhide)
-    _validate_env
-    _ensure_db
-    cmd_unhide "$@"
-    ;;
-  sent)
-    _validate_env
-    _ensure_db
-    _sent_sub="${1:-}"
-    if [[ -z "$_sent_sub" ]]; then
-      format_error "invalid_argument" "sent requires a subcommand: list, read, hide, unhide" || exit $?
-    fi
-    shift
-    case "$_sent_sub" in
-      list)   cmd_sent_list "$@" ;;
-      read)   cmd_sent_read "$@" ;;
-      hide)   cmd_sent_hide "$@" ;;
-      unhide) cmd_sent_unhide "$@" ;;
-      *)
-        format_error "invalid_argument" "unknown sent subcommand: $_sent_sub" || exit $?
-        ;;
-    esac
-    ;;
-  thread)
-    _validate_env
-    _ensure_db
-    cmd_thread "$@"
-    ;;
-  directory)
-    _validate_env
-    _ensure_db
-    _dir_sub="${1:-}"
-    if [[ -z "$_dir_sub" ]]; then
-      format_error "invalid_argument" "directory requires a subcommand: list, show, members" || exit $?
-    fi
-    shift
-    case "$_dir_sub" in
-      list)    cmd_directory_list "$@" ;;
-      show)    cmd_directory_show "$@" ;;
-      members) cmd_directory_members "$@" ;;
-      *)
-        format_error "invalid_argument" "unknown directory subcommand: $_dir_sub" || exit $?
-        ;;
-    esac
-    ;;
-  give-feedback)
-    _validate_env
-    _ensure_db
-    cmd_give_feedback "$@"
-    ;;
-  help)
-    _show_help
-    exit 0
-    ;;
-  *)
-    # Check if this is an experimental surface before reporting unknown command
-    if experimental_check "$_subcommand"; then
-      experimental_probe "$_subcommand" "verb" || exit $?
-    else
-      format_error "invalid_argument" "unknown command: $_subcommand" || exit $?
-    fi
-    ;;
-esac
+# Start telemetry timing
+_telem_start=$(telemetry_start_command)
+_telem_argv="$_subcommand $*"
+_cmd_exit=0
+
+_run_command() {
+  case "$_subcommand" in
+    whoami)
+      _validate_env
+      _ensure_db
+      cmd_whoami "$@"
+      ;;
+    send)
+      _validate_env
+      _ensure_db
+      cmd_send "$@"
+      ;;
+    list)
+      _validate_env
+      _ensure_db
+      cmd_list "$@"
+      ;;
+    read)
+      _validate_env
+      _ensure_db
+      cmd_read "$@"
+      ;;
+    reply)
+      _validate_env
+      _ensure_db
+      cmd_reply "$@"
+      ;;
+    ack)
+      _validate_env
+      _ensure_db
+      cmd_ack "$@"
+      ;;
+    hide)
+      _validate_env
+      _ensure_db
+      cmd_hide "$@"
+      ;;
+    unhide)
+      _validate_env
+      _ensure_db
+      cmd_unhide "$@"
+      ;;
+    sent)
+      _validate_env
+      _ensure_db
+      _sent_sub="${1:-}"
+      if [[ -z "$_sent_sub" ]]; then
+        format_error "invalid_argument" "sent requires a subcommand: list, read, hide, unhide" || return $?
+      fi
+      shift
+      case "$_sent_sub" in
+        list)   cmd_sent_list "$@" ;;
+        read)   cmd_sent_read "$@" ;;
+        hide)   cmd_sent_hide "$@" ;;
+        unhide) cmd_sent_unhide "$@" ;;
+        *)
+          format_error "invalid_argument" "unknown sent subcommand: $_sent_sub" || return $?
+          ;;
+      esac
+      ;;
+    thread)
+      _validate_env
+      _ensure_db
+      cmd_thread "$@"
+      ;;
+    directory)
+      _validate_env
+      _ensure_db
+      _dir_sub="${1:-}"
+      if [[ -z "$_dir_sub" ]]; then
+        format_error "invalid_argument" "directory requires a subcommand: list, show, members" || return $?
+      fi
+      shift
+      case "$_dir_sub" in
+        list)    cmd_directory_list "$@" ;;
+        show)    cmd_directory_show "$@" ;;
+        members) cmd_directory_members "$@" ;;
+        *)
+          format_error "invalid_argument" "unknown directory subcommand: $_dir_sub" || return $?
+          ;;
+      esac
+      ;;
+    give-feedback)
+      _validate_env
+      _ensure_db
+      cmd_give_feedback "$@"
+      ;;
+    help)
+      _show_help
+      return 0
+      ;;
+    *)
+      # Check if this is an experimental surface before reporting unknown command
+      if experimental_check "$_subcommand"; then
+        experimental_probe "$_subcommand" "verb" || return $?
+      else
+        format_error "invalid_argument" "unknown command: $_subcommand" || return $?
+      fi
+      ;;
+  esac
+}
+
+_run_command "$@" || _cmd_exit=$?
+
+# Finish telemetry timing
+telemetry_finish_command "$_telem_start" "$_subcommand" "$_cmd_exit" "$_telem_argv"
+
+exit "$_cmd_exit"
