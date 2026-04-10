@@ -140,10 +140,9 @@ do_read_history() {
     h_sender_str=$(lookup_address_id_to_string "$h_sender_id")
 
     # Escape strings for JSON
-    local safe_h_subject="${h_subject//\\/\\\\}"
-    safe_h_subject="${safe_h_subject//\"/\\\"}"
-    local safe_h_body="${h_body//\\/\\\\}"
-    safe_h_body="${safe_h_body//\"/\\\"}"
+    local safe_h_subject safe_h_body
+    safe_h_subject=$(json_escape "$h_subject")
+    safe_h_body=$(json_escape "$h_body")
 
     local item="{\"message_id\":\"$h_id\",\"conversation_id\":\"$h_cnv\",\"parent_message_id\":$redacted_parent,\"sender\":\"$h_sender_str\",\"subject\":\"$safe_h_subject\",\"body\":\"$safe_h_body\",\"created_at_ms\":$h_created_at,\"view_kind\":\"$h_view\""
 

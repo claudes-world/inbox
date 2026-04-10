@@ -151,7 +151,22 @@ resolve_thread_visibility() {
   # 1. Messages where actor has a delivery
   # 2. Messages where actor is sender and has a sent_item
   # UNION removes duplicates (self-send case)
-  db_query "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
+  db_query "SELECT m.id, m.conversation_id,
+      CASE
+        WHEN m.parent_message_id IS NULL THEN NULL
+        WHEN EXISTS (
+          SELECT 1 FROM deliveries d2
+          WHERE d2.message_id = m.parent_message_id
+            AND d2.recipient_address_id = '$actor_addr_id'
+          UNION
+          SELECT 1 FROM sent_items s2
+          JOIN messages m2 ON s2.message_id = m2.id
+          WHERE m2.id = m.parent_message_id
+            AND m2.sender_address_id = '$actor_addr_id'
+        ) THEN m.parent_message_id
+        ELSE NULL
+      END as parent_message_id,
+      m.sender_address_id,
       m.subject, m.body, m.sender_urgency, m.created_at_ms,
       COALESCE(d.id, '') as delivery_id,
       COALESCE(d.effective_role, '') as effective_role,
