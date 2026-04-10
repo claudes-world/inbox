@@ -41,6 +41,26 @@ generate_id() {
   echo "${prefix}${ts_hex}_${rand_hex}"
 }
 
+# sql_escape — Escape a string for safe SQL string literal embedding.
+# Doubles single quotes per SQL standard.
+# Usage: sql_escape "$variable"
+sql_escape() {
+  echo "${1//\'/\'\'}"
+}
+
+# json_escape — Escape a string for safe JSON string value embedding.
+# Escapes backslash, double-quote, newline, carriage-return, and tab.
+# Usage: json_escape "$variable"
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"   # backslash first
+  s="${s//\"/\\\"}"   # double-quote
+  s="${s//$'\n'/\\n}" # newline
+  s="${s//$'\r'/\\r}" # carriage-return
+  s="${s//$'\t'/\\t}" # tab
+  echo "$s"
+}
+
 # die — Print error message to stderr and exit with given code.
 # Usage: die <exit_code> <message>
 die() {

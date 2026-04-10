@@ -11,6 +11,20 @@ query_sent_list() {
   local until_ms="${4:-}"
   local limit="${5:-50}"
 
+  # Validate numeric inputs before interpolating into SQL
+  if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+    error_json "invalid_argument" "limit must be a non-negative integer" "limit"
+    return "$EXIT_INVALID_ARGUMENT"
+  fi
+  if [[ -n "$since_ms" ]] && ! [[ "$since_ms" =~ ^[0-9]+$ ]]; then
+    error_json "invalid_argument" "since_ms must be a non-negative integer" "since_ms"
+    return "$EXIT_INVALID_ARGUMENT"
+  fi
+  if [[ -n "$until_ms" ]] && ! [[ "$until_ms" =~ ^[0-9]+$ ]]; then
+    error_json "invalid_argument" "until_ms must be a non-negative integer" "until_ms"
+    return "$EXIT_INVALID_ARGUMENT"
+  fi
+
   # Clamp limit
   [[ "$limit" -gt 200 ]] && limit=200
 
@@ -50,8 +64,8 @@ query_sent_list() {
     local m_id m_cnv m_subj m_ts s_vis
     IFS='|' read -r m_id m_cnv m_subj m_ts s_vis <<< "$row"
 
-    local safe_subj="${m_subj//\\/\\\\}"
-    safe_subj="${safe_subj//\"/\\\"}"
+    local safe_subj
+    safe_subj=$(json_escape "$m_subj")
 
     local item="{\"message_id\":\"$m_id\",\"conversation_id\":\"$m_cnv\",\"subject\":\"$safe_subj\",\"created_at_ms\":$m_ts,\"view_kind\":\"sent\",\"visibility_state\":\"$s_vis\"}"
 
@@ -149,18 +163,22 @@ query_sent_read() {
     local r_kind r_value r_label r_mime r_meta
     IFS='|' read -r r_kind r_value r_label r_mime r_meta <<< "$rr"
 
-    local safe_r_value="${r_value//\\/\\\\}"
-    safe_r_value="${safe_r_value//\"/\\\"}"
+    local safe_r_value
+    safe_r_value=$(json_escape "$r_value")
 
     local ref_item="{\"kind\":\"$r_kind\",\"value\":\"$safe_r_value\""
     if [[ -n "$r_label" ]]; then
-      local safe_r_label="${r_label//\\/\\\\}"
-      safe_r_label="${safe_r_label//\"/\\\"}"
+      local safe_r_label
+      safe_r_label=$(json_escape "$r_label")
       ref_item+=",\"label\":\"$safe_r_label\""
     else
       ref_item+=",\"label\":null"
     fi
-    ref_item+=",\"mime_type\":${r_mime:+\"$r_mime\"}${r_mime:-null}"
+    if [[ -n "$r_mime" ]]; then
+      ref_item+=",\"mime_type\":\"$r_mime\""
+    else
+      ref_item+=",\"mime_type\":null"
+    fi
     ref_item+=",\"metadata\":${r_meta:-null}}"
 
     if [[ $first_ref -eq 1 ]]; then
@@ -174,10 +192,9 @@ query_sent_read() {
   refs_json+="]"
 
   # Escape message fields for JSON
-  local safe_subj="${m_subj//\\/\\\\}"
-  safe_subj="${safe_subj//\"/\\\"}"
-  local safe_body="${m_body//\\/\\\\}"
-  safe_body="${safe_body//\"/\\\"}"
+  local safe_subj safe_body
+  safe_subj=$(json_escape "$m_subj")
+  safe_body=$(json_escape "$m_body")
 
   local parent_json="null"
   [[ -n "$m_parent" ]] && parent_json="\"$m_parent\""

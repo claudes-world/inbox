@@ -204,8 +204,8 @@ do_send() {
   # --- Phase 4: Build SQL transaction ---
   # Escape single quotes in text fields for SQL
   local safe_subject safe_body
-  safe_subject="${subject//\'/\'\'}"
-  safe_body="${body//\'/\'\'}"
+  safe_subject=$(sql_escape "$subject")
+  safe_body=$(sql_escape "$body")
 
   local sql=""
 
@@ -257,11 +257,15 @@ do_send() {
       ref_mime=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].mime_type'), '');")
       ref_meta=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].metadata'), '');")
 
-      local safe_ref_value="${ref_value//\'/\'\'}"
-      local safe_ref_label="${ref_label//\'/\'\'}"
+      local safe_ref_kind safe_ref_value safe_ref_label safe_ref_mime safe_ref_meta
+      safe_ref_kind=$(sql_escape "$ref_kind")
+      safe_ref_value=$(sql_escape "$ref_value")
+      safe_ref_label=$(sql_escape "$ref_label")
+      safe_ref_mime=$(sql_escape "$ref_mime")
+      safe_ref_meta=$(sql_escape "$ref_meta")
 
       sql+="INSERT INTO message_references (id, message_id, ordinal, ref_kind, ref_value, label, mime_type, metadata_json)"
-      sql+=" VALUES ('$ref_id', '$msg_id', $((ref_i + 1)), '$ref_kind', '$safe_ref_value',"
+      sql+=" VALUES ('$ref_id', '$msg_id', $((ref_i + 1)), '$safe_ref_kind', '$safe_ref_value',"
       if [[ -z "$ref_label" ]]; then
         sql+=" NULL,"
       else
@@ -270,12 +274,12 @@ do_send() {
       if [[ -z "$ref_mime" ]]; then
         sql+=" NULL,"
       else
-        sql+=" '$ref_mime',"
+        sql+=" '$safe_ref_mime',"
       fi
       if [[ -z "$ref_meta" ]]; then
         sql+=" NULL);"
       else
-        sql+=" '$ref_meta');"
+        sql+=" '$safe_ref_meta');"
       fi
 
       ref_i=$((ref_i + 1))
@@ -502,8 +506,9 @@ do_send_in_conversation() {
   fi
 
   # --- Build SQL ---
-  local safe_subject="${subject//\'/\'\'}"
-  local safe_body="${body//\'/\'\'}"
+  local safe_subject safe_body
+  safe_subject=$(sql_escape "$subject")
+  safe_body=$(sql_escape "$body")
   local sql=""
 
   # Create message (conversation already exists; set parent)

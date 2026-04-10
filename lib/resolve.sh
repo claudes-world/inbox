@@ -26,10 +26,15 @@ resolve_actor() {
     return "$EXIT_INVALID_ARGUMENT"
   fi
 
+  # Escape for SQL safety
+  local escaped_local escaped_host
+  escaped_local=$(sql_escape "$local_part")
+  escaped_host=$(sql_escape "$host")
+
   # Look up in addresses table
   local row
   row=$(db_query "SELECT id, local_part, host, kind, display_name, is_active, is_listed, classification
-    FROM addresses WHERE local_part = '$local_part' AND host = '$host';")
+    FROM addresses WHERE local_part = '$escaped_local' AND host = '$escaped_host';")
 
   if [[ -z "$row" ]]; then
     # Conflation: don't distinguish nonexistent from inaccessible
@@ -188,9 +193,14 @@ validate_direct_recipient() {
   local_part="${address%%@*}"
   host="${address#*@}"
 
+  # Escape for SQL safety
+  local escaped_local escaped_host
+  escaped_local=$(sql_escape "$local_part")
+  escaped_host=$(sql_escape "$host")
+
   local row
   row=$(db_query "SELECT id, local_part, host, kind, is_active
-    FROM addresses WHERE local_part = '$local_part' AND host = '$host';")
+    FROM addresses WHERE local_part = '$escaped_local' AND host = '$escaped_host';")
 
   if [[ -z "$row" ]]; then
     error_json "invalid_argument" "unknown recipient address: $address" "recipient"
@@ -419,8 +429,23 @@ construct_reply_all_audience() {
     unset IFS
   fi
 
-  echo "to:${to_ids}"
-  echo "cc:${cc_ids}"
+  # Final pass: remove actor from to_ids and cc_ids after all additions.
+  # Guards against the actor slipping in via the explicit addition paths or
+  # as a list member when the list address itself was a public recipient.
+  local filtered_to="" filtered_cc=""
+  local IFS=','
+  for addr_id in $to_ids; do
+    [[ -z "$addr_id" || "$addr_id" == "$actor_addr_id" ]] && continue
+    filtered_to="${filtered_to:+$filtered_to,}$addr_id"
+  done
+  for addr_id in $cc_ids; do
+    [[ -z "$addr_id" || "$addr_id" == "$actor_addr_id" ]] && continue
+    filtered_cc="${filtered_cc:+$filtered_cc,}$addr_id"
+  done
+  unset IFS
+
+  echo "to:${filtered_to}"
+  echo "cc:${filtered_cc}"
   return 0
 }
 
@@ -430,7 +455,11 @@ lookup_address_by_string() {
   local local_part="${address%%@*}"
   local host="${address#*@}"
 
-  db_query "SELECT id FROM addresses WHERE local_part = '$local_part' AND host = '$host';"
+  local escaped_local escaped_host
+  escaped_local=$(sql_escape "$local_part")
+  escaped_host=$(sql_escape "$host")
+
+  db_query "SELECT id FROM addresses WHERE local_part = '$escaped_local' AND host = '$escaped_host';"
 }
 
 # lookup_address_id_to_string — Convert an address ID to "local_part@host" string.
