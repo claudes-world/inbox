@@ -569,7 +569,10 @@ do_send_in_conversation() {
   local sender_str
   sender_str=$(lookup_address_id_to_string "$sender_addr_id")
 
-  success_json "\"message_id\":\"$msg_id\",\"conversation_id\":\"$cnv_id\",\"parent_message_id\":${parent_msg_id:+\"$parent_msg_id\"}${parent_msg_id:-null},\"sender\":\"$sender_str\",\"resolved_recipient_count\":$resolved_count,\"resolution_summary\":{\"logical_recipient_count\":$logical_count,\"resolved_recipient_count\":$resolved_count,\"skipped_inactive_member_count\":$skipped_inactive,\"deduped_recipient_count\":$deduped_count},\"sent_item_created\":true"
+  local parent_json="null"
+  [[ -n "$parent_msg_id" ]] && parent_json="\"$parent_msg_id\""
+
+  success_json "\"message_id\":\"$msg_id\",\"conversation_id\":\"$cnv_id\",\"parent_message_id\":$parent_json,\"sender\":\"$sender_str\",\"resolved_recipient_count\":$resolved_count,\"resolution_summary\":{\"logical_recipient_count\":$logical_count,\"resolved_recipient_count\":$resolved_count,\"skipped_inactive_member_count\":$skipped_inactive,\"deduped_recipient_count\":$deduped_count},\"sent_item_created\":true"
 }
 
 # do_reply — Execute a reply transaction.
