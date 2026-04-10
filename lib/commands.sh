@@ -203,13 +203,17 @@ cmd_list() {
   fi
 
   local rows
-  rows=$(db_query "SELECT m.id, m.conversation_id, m.subject, m.body, m.created_at_ms,
+  rows=$(printf '%s\n' \
+    "PRAGMA foreign_keys = ON;" \
+    ".separator \"$(printf '\t')\"" \
+    "SELECT m.id, m.conversation_id, m.subject, m.body, m.created_at_ms,
       d.engagement_state, d.visibility_state, d.effective_role, d.delivered_at_ms, d.id as delivery_id
     FROM deliveries d
     JOIN messages m ON m.id = d.message_id
     WHERE $where_clauses
     ORDER BY d.delivered_at_ms DESC, d.id DESC
-    LIMIT $limit;")
+    LIMIT $limit;" \
+    | sqlite3 "$INBOX_DB")
 
   local items="["
   local first=1
@@ -220,7 +224,7 @@ cmd_list() {
     count=$((count + 1))
 
     local m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id
-    IFS='|' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
+    IFS=$'\t' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
 
     # Get sender
     local sender_id sender_str safe_m_id
@@ -317,12 +321,16 @@ cmd_read() {
 
   # Get message content
   local msg_row
-  msg_row=$(db_query "SELECT id, conversation_id, parent_message_id, sender_address_id,
+  msg_row=$(printf '%s\n' \
+    "PRAGMA foreign_keys = ON;" \
+    ".separator \"$(printf '\t')\"" \
+    "SELECT id, conversation_id, parent_message_id, sender_address_id,
       subject, body, sender_urgency, created_at_ms
-    FROM messages WHERE id = '$safe_msg_id';")
+    FROM messages WHERE id = '$safe_msg_id';" \
+    | sqlite3 "$INBOX_DB")
 
   local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
-  IFS='|' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+  IFS=$'\t' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
 
   local sender_str
   sender_str=$(lookup_address_id_to_string "$m_sender_id")
@@ -389,7 +397,16 @@ cmd_read() {
   safe_body="$(json_escape "$m_body")"
 
   local parent_json="null"
-  [[ -n "$m_parent" ]] && parent_json="\"$m_parent\""
+  if [[ -n "$m_parent" ]]; then
+    # Check if parent is visible to actor (has delivery or sent_item)
+    local safe_parent="$(sql_escape "$m_parent")"
+    local safe_actor="$(sql_escape "$actor_id")"
+    local parent_visible
+    parent_visible=$(db_query "SELECT 1 FROM deliveries WHERE message_id='$safe_parent' AND recipient_address_id='$safe_actor' UNION SELECT 1 FROM sent_items si JOIN messages m ON si.message_id=m.id WHERE m.id='$safe_parent' AND m.sender_address_id='$safe_actor' LIMIT 1")
+    if [[ -n "$parent_visible" ]]; then
+      parent_json="\"$m_parent\""
+    fi
+  fi
 
   # History
   local history_json="[]"
@@ -500,11 +517,17 @@ cmd_reply() {
     unset IFS
   fi
 
+  # Build references JSON
+  local refs_json="[]"
+  if [[ ${#_REF_KINDS[@]} -gt 0 ]]; then
+    refs_json=$(build_refs_json)
+  fi
+
   local reply_subject=""
   [[ "$subject_set" == "1" ]] && reply_subject="$subject"
 
   local result
-  result=$(do_reply "$actor_id" "$msg_id" "$all_flag" "$to_addr_ids" "$cc_addr_ids" "$reply_subject" "$body" "$urgency") || {
+  result=$(do_reply "$actor_id" "$msg_id" "$all_flag" "$to_addr_ids" "$cc_addr_ids" "$reply_subject" "$body" "$urgency" "$refs_json") || {
     local rc=$?
     if [[ "$INBOX_JSON_MODE" == "1" ]]; then
       echo "$result"
@@ -777,7 +800,10 @@ cmd_thread() {
 
   # Window selection: newest N, then return oldest-to-newest
   local thread_rows
-  thread_rows=$(db_query "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
+  thread_rows=$(printf '%s\n' \
+    "PRAGMA foreign_keys = ON;" \
+    ".separator \"$(printf '\t')\"" \
+    "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
       m.subject, m.body, m.sender_urgency, m.created_at_ms,
       COALESCE(d.id, '') as delivery_id,
       COALESCE(d.effective_role, '') as effective_role,
@@ -792,7 +818,8 @@ cmd_thread() {
       AND (d.id IS NOT NULL OR si.message_id IS NOT NULL)
       $time_clause
     ORDER BY m.created_at_ms DESC, m.id DESC
-    LIMIT $limit;")
+    LIMIT $limit;" \
+    | sqlite3 "$INBOX_DB")
 
   # Reverse to oldest-to-newest and build JSON
   local -a lines=()
@@ -811,7 +838,7 @@ cmd_thread() {
     count=$((count + 1))
 
     local t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis
-    IFS='|' read -r t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
+    IFS=$'\t' read -r t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
 
     # Parent redaction
     local redacted_parent="null"
