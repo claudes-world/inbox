@@ -1,0 +1,2 @@
+-- schema/seed.sql — Fixture data for testing and development.
+-- Stub: will be populated in Issue #7.
