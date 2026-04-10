@@ -366,7 +366,7 @@ do_send_in_conversation() {
   msg_id=$(generate_id "msg_")
 
   local logical_count=0
-  local all_addr_ids=""
+  local _all_addr_ids=""
 
   IFS=','
   for addr_id in $to_addr_ids; do
@@ -617,8 +617,8 @@ do_reply() {
   local urgency="${8:-normal}"
   local references_json="${9:-[]}"
 
-  local reply_result
-  reply_result=$(resolve_reply "$target_msg_id" "$actor_addr_id") || return $?
+  local _reply_result
+  _reply_result=$(resolve_reply "$target_msg_id" "$actor_addr_id") || return $?
 
   local cnv_id
   cnv_id=$(db_query "SELECT conversation_id FROM messages WHERE id = '$target_msg_id';")

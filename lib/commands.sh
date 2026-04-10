@@ -212,8 +212,8 @@ cmd_list() {
     [[ -z "$row" ]] && continue
     count=$((count + 1))
 
-    local m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id
-    IFS=$'\x1f' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
+    local m_id m_cnv m_subj m_body _m_ts d_eng d_vis d_role d_at d_id
+    IFS=$'\x1f' read -r m_id m_cnv m_subj m_body _m_ts d_eng d_vis d_role d_at d_id <<< "$row"
 
     local sender_id sender_str safe_m_id
     safe_m_id="$(sql_escape "$m_id")"
@@ -304,8 +304,8 @@ cmd_read() {
     FROM messages WHERE id = '$safe_msg_id';" \
     | sqlite3 "$INBOX_DB")
 
-  local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
-  IFS=$'\x1f' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+  local m_id m_cnv m_parent m_sender_id m_subj m_body _m_urgency _m_ts
+  IFS=$'\x1f' read -r m_id m_cnv m_parent m_sender_id m_subj m_body _m_urgency _m_ts <<< "$msg_row"
 
   local sender_str
   sender_str=$(lookup_address_id_to_string "$m_sender_id")
@@ -371,8 +371,10 @@ cmd_read() {
   local parent_json="null"
   if [[ -n "$m_parent" ]]; then
     # Check if parent is visible to actor (has delivery or sent_item)
-    local safe_parent="$(sql_escape "$m_parent")"
-    local safe_actor="$(sql_escape "$actor_id")"
+    local safe_parent
+    safe_parent="$(sql_escape "$m_parent")"
+    local safe_actor
+    safe_actor="$(sql_escape "$actor_id")"
     local parent_visible
     parent_visible=$(db_query "SELECT 1 FROM deliveries WHERE message_id='$safe_parent' AND recipient_address_id='$safe_actor' UNION SELECT 1 FROM sent_items si JOIN messages m ON si.message_id=m.id WHERE m.id='$safe_parent' AND m.sender_address_id='$safe_actor' LIMIT 1")
     if [[ -n "$parent_visible" ]]; then
@@ -769,8 +771,8 @@ cmd_thread() {
     local line="${lines[$i]}"
     count=$((count + 1))
 
-    local t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis
-    IFS=$'\x1f' read -r t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
+    local t_id _t_cnv t_parent t_sender_id t_subj t_body _t_urgency t_ts _t_dly_id t_role t_eng t_d_vis t_view t_s_vis
+    IFS=$'\x1f' read -r t_id _t_cnv t_parent t_sender_id t_subj t_body _t_urgency t_ts _t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
 
     # Parent redaction
     local redacted_parent="null"
@@ -885,7 +887,9 @@ cmd_directory_list() {
     local desc_json="null"; [[ -n "$desc" ]] && desc_json="\"$(json_escape "$desc")\""
     local class_json="null"; [[ -n "$classification" ]] && class_json="\"$(json_escape "$classification")\""
 
-    local item="{\"address\":\"$addr\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"description\":$desc_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"classification\":$class_json}"
+    local is_active_json; is_active_json=$([ "$is_active" = "1" ] && echo "true" || echo "false")
+    local is_listed_json; is_listed_json=$([ "$is_listed" = "1" ] && echo "true" || echo "false")
+    local item="{\"address\":\"$addr\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"description\":$desc_json,\"is_active\":$is_active_json,\"is_listed\":$is_listed_json,\"classification\":$class_json}"
 
     [[ $first -eq 1 ]] && { items+="$item"; first=0; } || items+=",$item"
   done <<< "$rows"

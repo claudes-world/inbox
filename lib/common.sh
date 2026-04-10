@@ -72,7 +72,7 @@ json_escape() {
     case $i in
       8|9|10|12|13) continue ;; # Already handled: \b \t \n \f \r
     esac
-    char_val=$(printf "\\x$(printf '%02x' $i)")
+    char_val=$(printf '%b' "$(printf '\\x%02x' "$i")")
     hex=$(printf '\\u%04x' $i)
     s="${s//$char_val/$hex}"
   done
@@ -82,8 +82,10 @@ json_escape() {
 # error_json — Output a JSON error envelope to stdout.
 # Usage: error_json <code> <message> [target] [details_json]
 error_json() {
-  local code="$(json_escape "${1:-internal_error}")"
-  local message="$(json_escape "${2:-unknown error}")"
+  local code
+  code="$(json_escape "${1:-internal_error}")"
+  local message
+  message="$(json_escape "${2:-unknown error}")"
   local target="${3:-null}"
   local details="${4:-null}"
 

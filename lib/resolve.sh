@@ -39,9 +39,9 @@ resolve_actor() {
     return "$EXIT_NOT_FOUND"
   fi
 
-  local addr_id addr_kind addr_active
+  local addr_id _addr_kind addr_active
   addr_id=$(echo "$row" | cut -d'|' -f1)
-  addr_kind=$(echo "$row" | cut -d'|' -f4)
+  _addr_kind=$(echo "$row" | cut -d'|' -f4)
   addr_active=$(echo "$row" | cut -d'|' -f6)
 
   if [[ "$addr_active" != "1" ]]; then

@@ -63,7 +63,7 @@ format_list_items() {
   local json_data="$1"
 
   local count
-  count=$(sqlite3 :memory: "SELECT json_array_length(json_extract('$(echo "$json_data" | sed "s/'/''/g")', '\$.items'));")
+  count=$(sqlite3 :memory: "SELECT json_array_length(json_extract('${json_data//\'/\'\'}', '\$.items'));")
 
   if [[ "$count" -eq 0 ]]; then
     echo "(no messages)"
@@ -72,8 +72,7 @@ format_list_items() {
 
   local i=0
   while [[ $i -lt $count ]]; do
-    local escaped_json
-    escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+    local escaped_json="${json_data//\'/\'\'}"
     local state sender subject ts msg_id
     state=$(sqlite3 :memory: "SELECT UPPER(COALESCE(json_extract('$escaped_json', '\$.items[$i].engagement_state'), json_extract('$escaped_json', '\$.items[$i].visibility_state')));")
     msg_id=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.items[$i].message_id');")
@@ -100,7 +99,7 @@ format_sent_list_items() {
   local json_data="$1"
 
   local count
-  count=$(sqlite3 :memory: "SELECT json_array_length(json_extract('$(echo "$json_data" | sed "s/'/''/g")', '\$.items'));")
+  count=$(sqlite3 :memory: "SELECT json_array_length(json_extract('${json_data//\'/\'\'}', '\$.items'));")
 
   if [[ "$count" -eq 0 ]]; then
     echo "(no sent messages)"
@@ -109,8 +108,7 @@ format_sent_list_items() {
 
   local i=0
   while [[ $i -lt $count ]]; do
-    local escaped_json
-    escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+    local escaped_json="${json_data//\'/\'\'}"
     local vis subject ts msg_id
     vis=$(sqlite3 :memory: "SELECT UPPER(json_extract('$escaped_json', '\$.items[$i].visibility_state'));")
     msg_id=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.items[$i].message_id');")
@@ -133,8 +131,7 @@ format_sent_list_items() {
 # Usage: format_message "$json_data"
 format_message() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local msg_id sender subject body view_kind
   msg_id=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.message.message_id');")
@@ -157,8 +154,7 @@ format_message() {
 # Usage: format_thread_items "$json_data"
 format_thread_items() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local count
   count=$(sqlite3 :memory: "SELECT json_array_length(json_extract('$escaped_json', '\$.items'));")
@@ -194,8 +190,7 @@ format_thread_items() {
 # Usage: format_whoami "$json_data"
 format_whoami() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local address kind display_name is_active db_path
   address=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.address');")
@@ -217,8 +212,7 @@ format_whoami() {
 # Usage: format_send_result "$json_data"
 format_send_result() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local msg_id cnv_id resolved_count
   msg_id=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.message_id');")
@@ -234,8 +228,7 @@ format_send_result() {
 # Usage: format_mutation_result "$json_data"
 format_mutation_result() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local msg_id changed
   msg_id=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.message_id');")
@@ -252,8 +245,7 @@ format_mutation_result() {
 # Usage: format_directory_list "$json_data"
 format_directory_list() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local count
   count=$(sqlite3 :memory: "SELECT json_array_length(json_extract('$escaped_json', '\$.items'));")
@@ -283,8 +275,7 @@ format_directory_list() {
 # Usage: format_directory_show "$json_data"
 format_directory_show() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local addr kind display_name description is_active is_listed
   addr=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.address.address');")
@@ -306,8 +297,7 @@ format_directory_show() {
 # Usage: format_directory_members "$json_data"
 format_directory_members() {
   local json_data="$1"
-  local escaped_json
-  escaped_json=$(echo "$json_data" | sed "s/'/''/g")
+  local escaped_json="${json_data//\'/\'\'}"
 
   local group
   group=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '\$.group');")

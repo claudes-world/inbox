@@ -113,8 +113,8 @@ query_sent_read() {
     return "$EXIT_NOT_FOUND"
   fi
 
-  local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
-  IFS=$'\x01' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+  local m_id m_cnv m_parent m_sender_id m_subj m_body _m_urgency m_ts
+  IFS=$'\x01' read -r m_id m_cnv m_parent m_sender_id m_subj m_body _m_urgency m_ts <<< "$msg_row"
 
   local sender_str safe_sender_str
   sender_str=$(lookup_address_id_to_string "$m_sender_id")
@@ -206,8 +206,10 @@ query_sent_read() {
   local parent_json="null"
   if [[ -n "$m_parent" ]]; then
     # Check if parent is visible to actor (has delivery or sent_item)
-    local safe_parent="$(sql_escape "$m_parent")"
-    local safe_actor="$(sql_escape "$actor_addr_id")"
+    local safe_parent
+    safe_parent="$(sql_escape "$m_parent")"
+    local safe_actor
+    safe_actor="$(sql_escape "$actor_addr_id")"
     local parent_visible
     parent_visible=$(db_query "SELECT 1 FROM deliveries WHERE message_id='$safe_parent' AND recipient_address_id='$safe_actor' UNION SELECT 1 FROM sent_items si JOIN messages m ON si.message_id=m.id WHERE m.id='$safe_parent' AND m.sender_address_id='$safe_actor' LIMIT 1")
     if [[ -n "$parent_visible" ]]; then
