@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 58850,
+    allowedHosts: ["inbox.claude.do"],
     proxy: {
       "/api": {
         target: "http://localhost:38850",

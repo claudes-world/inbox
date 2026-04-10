@@ -1,15 +1,26 @@
+import { useState } from "react";
+import { InboxPanel } from "./components/panels/InboxPanel.js";
+import { ThreadPanel } from "./components/panels/ThreadPanel.js";
+
 export function App() {
+  const [activeThread, setActiveThread] = useState<string | null>(null);
+
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <header className="border-b border-gray-800 px-6 py-4">
+    <div className="min-h-screen bg-zinc-900 text-zinc-100">
+      <header className="border-b border-zinc-800 px-6 py-4">
         <h1 className="text-xl font-semibold tracking-tight">
           Inbox — Operator's Console
         </h1>
       </header>
-      <main className="p-6">
-        <p className="text-gray-400">
-          Phase 7 scaffold. Routes and components coming soon.
-        </p>
+      <main>
+        {activeThread ? (
+          <ThreadPanel
+            conversationId={activeThread}
+            onBack={() => setActiveThread(null)}
+          />
+        ) : (
+          <InboxPanel onSelectThread={setActiveThread} />
+        )}
       </main>
     </div>
   );

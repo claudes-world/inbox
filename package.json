@@ -1,7 +1,9 @@
 {
   "name": "tryinbox",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "prebuild": "pnpm --filter @inbox/contracts build",
     "pretest": "pnpm --filter @inbox/contracts build",
@@ -11,5 +13,10 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }
