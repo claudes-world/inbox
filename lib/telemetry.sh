@@ -71,10 +71,26 @@ telemetry_record() {
     esac
   done
 
+  # JSON-escape all user-controlled fields to prevent NDJSON injection
+  event_name="$(json_escape "$event_name")"
+  command="$(json_escape "$command")"
+  result_ok="$(json_escape "$result_ok")"
+  duration_ms="$(json_escape "$duration_ms")"
+  actor="$(json_escape "$actor")"
+  error_code="$(json_escape "$error_code")"
+
   # Build JSON record based on capture mode
   local record=""
 
   if [[ "$_TELEMETRY_CAPTURE_MODE" == "dangerous-full-context" ]]; then
+    # JSON-escape additional fields for rich capture
+    argv="$(json_escape "$argv")"
+    parsed_flags="$(json_escape "$parsed_flags")"
+    stdin_present="$(json_escape "$stdin_present")"
+    json_mode="$(json_escape "$json_mode")"
+    feature_name="$(json_escape "$feature_name")"
+    feature_kind="$(json_escape "$feature_kind")"
+
     # Rich capture: include all available context
     record=$(printf '{"event":"%s","ts_ms":%s,"capture_mode":"dangerous-full-context","command":"%s","result_ok":"%s","duration_ms":"%s","actor":"%s","error_code":"%s","argv":"%s","parsed_flags":"%s","stdin_present":"%s","json_mode":"%s","feature_name":"%s","feature_kind":"%s","experimental_mode":"%s","experimental_profile":"%s"}' \
       "$event_name" "$ts_ms" \

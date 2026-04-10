@@ -6,6 +6,7 @@ set -euo pipefail
 # Global flags: --json, --help
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export INBOX_VERSION="0.1.0-dev"
 
 # Source all lib modules in deterministic order
 for lib in "$SCRIPT_DIR"/lib/*.sh; do source "$lib"; done
@@ -24,6 +25,7 @@ for arg in "$@"; do
   case "$arg" in
     --json) INBOX_JSON_MODE=1 ;;
     --help) _SHOW_HELP=1 ;;
+    --version) echo "inbox $INBOX_VERSION"; exit 0 ;;
     *)      _ARGS+=("$arg") ;;
   esac
 done

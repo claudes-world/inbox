@@ -35,7 +35,7 @@ cmd_whoami() {
   safe_db_path="$(json_escape "$INBOX_DB")"
 
   local result
-  result=$(success_json "\"address\":\"$address\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"db_path\":\"$safe_db_path\"")
+  result=$(success_json "\"address\":\"$address\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"db_path\":\"$safe_db_path\",\"version\":\"${INBOX_VERSION:-unknown}\"")
 
   format_output "$result" format_whoami
 }
