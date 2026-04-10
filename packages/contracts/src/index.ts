@@ -1,0 +1,111 @@
+/**
+ * @inbox/contracts — shared types, Zod schemas, and enums for the Inbox messaging system.
+ *
+ * This package is the single source of truth for JSON contract shapes
+ * between the bash CLI, BFF server, and React UI.
+ */
+
+// Enums (runtime constants + types)
+export {
+  AddressKind,
+  ChangeKind,
+  Classification,
+  DeliveryEventType,
+  EffectiveRole,
+  EngagementState,
+  ErrorCode,
+  ExitCode,
+  PrivateRecipientRole,
+  RecipientRole,
+  RefKind,
+  SourceKind,
+  Urgency,
+  ViewKind,
+  VisibilityState,
+  errorToExit,
+} from "./enums.js";
+
+// Zod schemas (runtime validators)
+export {
+  // Primitives
+  addressStr,
+  conversationId,
+  deliveryId,
+  feedbackId,
+  messageId,
+  prefixedId,
+  timestampMs,
+  // Enum schemas
+  addressKindSchema,
+  effectiveRoleSchema,
+  engagementStateSchema,
+  errorCodeSchema,
+  recipientRoleSchema,
+  refKindSchema,
+  urgencySchema,
+  viewKindSchema,
+  visibilityStateSchema,
+  // Shared fragments
+  addressSummarySchema,
+  deliveryStateSchema,
+  referenceSchema,
+  resolutionSummarySchema,
+  sentStateSchema,
+  threadReferenceSchema,
+  // Error envelopes
+  comingSoonErrorSchema,
+  errorDetailSchema,
+  errorEnvelopeSchema,
+  // Command responses
+  directoryListResponseSchema,
+  directoryMembersResponseSchema,
+  directoryShowResponseSchema,
+  giveFeedbackResponseSchema,
+  listItemSchema,
+  listResponseSchema,
+  messageContentSchema,
+  mutationResponseSchema,
+  readResponseSchema,
+  replyResponseSchema,
+  sendResponseSchema,
+  sentListItemSchema,
+  sentListResponseSchema,
+  sentMutationResponseSchema,
+  sentReadResponseSchema,
+  threadItemSchema,
+  threadResponseSchema,
+  whoamiResponseSchema,
+} from "./schemas.js";
+
+// TypeScript types (zero-cost, type-only)
+export type {
+  AddressSummary,
+  CliResponse,
+  ComingSoonError,
+  DeliveryState,
+  DirectoryListResponse,
+  DirectoryMembersResponse,
+  DirectoryShowResponse,
+  ErrorDetail,
+  ErrorEnvelope,
+  GiveFeedbackResponse,
+  ListItem,
+  ListResponse,
+  MessageContent,
+  MutationResponse,
+  ReadResponse,
+  Reference,
+  ReplyResponse,
+  ThreadReference,
+  ResolutionSummary,
+  SendResponse,
+  SentListItem,
+  SentListResponse,
+  SentMutationResponse,
+  SentReadResponse,
+  SentState,
+  SuccessResponse,
+  ThreadItem,
+  ThreadResponse,
+  WhoamiResponse,
+} from "./types.js";
