@@ -275,63 +275,6 @@ expand_list() {
     ORDER BY gm.ordinal ASC, gm.member_address_id ASC"
 }
 
-# normalize_recipients — Dedupe same-role, preserve cross-role, assign effective_role by precedence.
-# Args: to_list (comma-sep addr IDs), cc_list (comma-sep addr IDs), bcc_list (comma-sep addr IDs)
-# Outputs lines of: addr_id|effective_role
-# Deduplication rules:
-#   - exact duplicates within same role are deduped (first-seen wins)
-#   - duplicates across roles: effective_role assigned by precedence to > cc > bcc
-normalize_recipients() {
-  local to_list="$1"
-  local cc_list="${2:-}"
-  local bcc_list="${3:-}"
-
-  # Build an associative array: addr_id -> best role
-  # Since bash 4+ has associative arrays, use them
-  declare -A _seen_role
-  declare -a _order
-
-  local IFS=','
-  # Process to first (highest precedence)
-  for addr_id in $to_list; do
-    [[ -z "$addr_id" ]] && continue
-    if [[ -z "${_seen_role[$addr_id]+x}" ]]; then
-      _seen_role["$addr_id"]="to"
-      _order+=("$addr_id")
-    fi
-    # If already seen, to > anything, so don't downgrade
-  done
-
-  # Process cc
-  for addr_id in $cc_list; do
-    [[ -z "$addr_id" ]] && continue
-    if [[ -z "${_seen_role[$addr_id]+x}" ]]; then
-      _seen_role["$addr_id"]="cc"
-      _order+=("$addr_id")
-    fi
-    # If already 'to', don't downgrade
-  done
-
-  # Process bcc
-  for addr_id in $bcc_list; do
-    [[ -z "$addr_id" ]] && continue
-    if [[ -z "${_seen_role[$addr_id]+x}" ]]; then
-      _seen_role["$addr_id"]="bcc"
-      _order+=("$addr_id")
-    fi
-  done
-
-  if [[ ${#_order[@]} -eq 0 ]]; then
-    error_json "invalid_state" "no recipients after normalization"
-    return "$EXIT_INVALID_STATE"
-  fi
-
-  for addr_id in "${_order[@]}"; do
-    echo "${addr_id}|${_seen_role[$addr_id]}"
-  done
-  return 0
-}
-
 # construct_reply_all_audience — Build reply-all recipient list.
 # Args: original_msg_id, actor_addr_id, explicit_to (comma-sep addr IDs), explicit_cc (comma-sep addr IDs)
 # Uses original public logical To/Cc headers from message_public_recipients (NOT expanded deliveries)
