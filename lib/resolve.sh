@@ -429,18 +429,42 @@ construct_reply_all_audience() {
     unset IFS
   fi
 
-  # Final pass: remove actor from to_ids and cc_ids after all additions.
+  # Final pass: expand list addresses and remove actor from both the flat list
+  # and any individual members resolved from list expansion.
   # Guards against the actor slipping in via the explicit addition paths or
-  # as a list member when the list address itself was a public recipient.
+  # appearing as a member of a list address that was a public recipient.
   local filtered_to="" filtered_cc=""
   local IFS=','
   for addr_id in $to_ids; do
     [[ -z "$addr_id" || "$addr_id" == "$actor_addr_id" ]] && continue
-    filtered_to="${filtered_to:+$filtered_to,}$addr_id"
+    if is_list_address "$addr_id"; then
+      # Expand the list and add individual members (minus actor)
+      local _members _ml _member_id
+      _members=$(expand_list "$addr_id")
+      while IFS= read -r _ml; do
+        [[ -z "$_ml" ]] && continue
+        _member_id=$(echo "$_ml" | cut -d'|' -f1)
+        [[ "$_member_id" == "$actor_addr_id" ]] && continue
+        filtered_to="${filtered_to:+$filtered_to,}$_member_id"
+      done <<< "$_members"
+    else
+      filtered_to="${filtered_to:+$filtered_to,}$addr_id"
+    fi
   done
   for addr_id in $cc_ids; do
     [[ -z "$addr_id" || "$addr_id" == "$actor_addr_id" ]] && continue
-    filtered_cc="${filtered_cc:+$filtered_cc,}$addr_id"
+    if is_list_address "$addr_id"; then
+      local _members _ml _member_id
+      _members=$(expand_list "$addr_id")
+      while IFS= read -r _ml; do
+        [[ -z "$_ml" ]] && continue
+        _member_id=$(echo "$_ml" | cut -d'|' -f1)
+        [[ "$_member_id" == "$actor_addr_id" ]] && continue
+        filtered_cc="${filtered_cc:+$filtered_cc,}$_member_id"
+      done <<< "$_members"
+    else
+      filtered_cc="${filtered_cc:+$filtered_cc,}$addr_id"
+    fi
   done
   unset IFS
 

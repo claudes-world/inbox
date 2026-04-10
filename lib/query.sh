@@ -97,11 +97,16 @@ query_sent_read() {
   local s_vis
   s_vis=$(echo "$sent_row" | cut -d'|' -f2)
 
-  # Get message details
+  # Get message details.
+  # Use SOH ($'\x01') as column separator to avoid breakage on pipe chars in subject/body.
   local msg_row
-  msg_row=$(db_query "SELECT id, conversation_id, parent_message_id, sender_address_id,
+  msg_row=$(printf '%s\n' \
+    "PRAGMA foreign_keys = ON;" \
+    ".separator \"$(printf '\x01')\"" \
+    "SELECT id, conversation_id, parent_message_id, sender_address_id,
       subject, body, sender_urgency, created_at_ms
-    FROM messages WHERE id = '$msg_id';")
+    FROM messages WHERE id = '$msg_id';" \
+    | sqlite3 "$INBOX_DB")
 
   if [[ -z "$msg_row" ]]; then
     error_json "not_found" "message not found" "message_id"
@@ -109,10 +114,11 @@ query_sent_read() {
   fi
 
   local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
-  IFS='|' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+  IFS=$'\x01' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
 
-  local sender_str
+  local sender_str safe_sender_str
   sender_str=$(lookup_address_id_to_string "$m_sender_id")
+  safe_sender_str=$(json_escape "$sender_str")
 
   # Get public recipients
   local pub_to_json="["
@@ -129,21 +135,22 @@ query_sent_read() {
     [[ -z "$pr" ]] && continue
     local pr_addr_id pr_role
     IFS='|' read -r pr_addr_id pr_role <<< "$pr"
-    local pr_str
+    local pr_str safe_pr_str
     pr_str=$(lookup_address_id_to_string "$pr_addr_id")
+    safe_pr_str=$(json_escape "$pr_str")
     if [[ "$pr_role" == "to" ]]; then
       if [[ $first_to -eq 1 ]]; then
-        pub_to_json+="\"$pr_str\""
+        pub_to_json+="\"$safe_pr_str\""
         first_to=0
       else
-        pub_to_json+=",\"$pr_str\""
+        pub_to_json+=",\"$safe_pr_str\""
       fi
     elif [[ "$pr_role" == "cc" ]]; then
       if [[ $first_cc -eq 1 ]]; then
-        pub_cc_json+="\"$pr_str\""
+        pub_cc_json+="\"$safe_pr_str\""
         first_cc=0
       else
-        pub_cc_json+=",\"$pr_str\""
+        pub_cc_json+=",\"$safe_pr_str\""
       fi
     fi
   done <<< "$pub_rows"
@@ -199,5 +206,5 @@ query_sent_read() {
   local parent_json="null"
   [[ -n "$m_parent" ]] && parent_json="\"$m_parent\""
 
-  success_json "\"message\":{\"message_id\":\"$m_id\",\"conversation_id\":\"$m_cnv\",\"parent_message_id\":$parent_json,\"sender\":\"$sender_str\",\"subject\":\"$safe_subj\",\"body\":\"$safe_body\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"references\":$refs_json},\"state\":{\"view_kind\":\"sent\",\"visibility_state\":\"$s_vis\"}"
+  success_json "\"message\":{\"message_id\":\"$m_id\",\"conversation_id\":\"$m_cnv\",\"parent_message_id\":$parent_json,\"sender\":\"$safe_sender_str\",\"subject\":\"$safe_subj\",\"body\":\"$safe_body\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"references\":$refs_json},\"state\":{\"view_kind\":\"sent\",\"visibility_state\":\"$s_vis\"}"
 }

@@ -56,6 +56,15 @@ do_read_history() {
   local actor_addr_id="$2"
   local history_count="${3:-5}"
 
+  # Verify the actor can see the target message (delivery or sent_item).
+  # resolve_reply returns "delivery|<row>" or "sent|<row>"; discard the value,
+  # we only care whether the check passes.
+  local _visibility_check
+  _visibility_check=$(resolve_reply "$msg_id" "$actor_addr_id" 2>/dev/null) || {
+    error_json "not_found" "message not found" "message_id"
+    return "$EXIT_NOT_FOUND"
+  }
+
   # Get the conversation and timestamp of the target message
   local msg_info
   msg_info=$(db_query "SELECT conversation_id, created_at_ms FROM messages WHERE id = '$msg_id';")
@@ -73,9 +82,14 @@ do_read_history() {
   visible_ids=$(resolve_thread_msg_ids "$cnv_id" "$actor_addr_id")
 
   # Select N prior visible messages (newest first by created_at_ms), then return oldest-to-newest
-  # Using the visibility union: actor deliveries + actor sent items
+  # Using the visibility union: actor deliveries + actor sent items.
+  # Use SOH ($'\x01') as column separator to avoid breakage on pipe chars in body/subject.
+  local _sep=$'\x01'
   local history_rows
-  history_rows=$(db_query "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
+  history_rows=$(printf '%s\n' \
+    "PRAGMA foreign_keys = ON;" \
+    ".separator \"$(printf '\x01')\"" \
+    "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
       m.subject, m.body, m.sender_urgency, m.created_at_ms,
       COALESCE(d.id, '') as delivery_id,
       COALESCE(d.effective_role, '') as effective_role,
@@ -90,7 +104,8 @@ do_read_history() {
       AND (d.id IS NOT NULL OR si.message_id IS NOT NULL)
       AND m.created_at_ms < $msg_ts
     ORDER BY m.created_at_ms DESC, m.id DESC
-    LIMIT $history_count")
+    LIMIT $history_count;" \
+    | sqlite3 "$INBOX_DB")
 
   if [[ -z "$history_rows" ]]; then
     echo "[]"
@@ -111,7 +126,7 @@ do_read_history() {
   for (( i=${#lines[@]}-1; i>=0; i-- )); do
     local line="${lines[$i]}"
     local h_id h_cnv h_parent h_sender_id h_subject h_body h_urgency h_created_at h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis
-    IFS='|' read -r h_id h_cnv h_parent h_sender_id h_subject h_body h_urgency h_created_at h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis <<< "$line"
+    IFS=$'\x01' read -r h_id h_cnv h_parent h_sender_id h_subject h_body h_urgency h_created_at h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis <<< "$line"
 
     # Parent redaction: check if parent is in visible set
     local redacted_parent="null"

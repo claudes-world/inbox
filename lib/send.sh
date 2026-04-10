@@ -330,13 +330,14 @@ do_send() {
   IFS=','
   for addr_id in $pub_to_ids; do
     [[ -z "$addr_id" ]] && continue
-    local addr_str
+    local addr_str safe_addr_str
     addr_str=$(lookup_address_id_to_string "$addr_id")
+    safe_addr_str=$(json_escape "$addr_str")
     if [[ $first -eq 1 ]]; then
-      pub_to_json+="\"$addr_str\""
+      pub_to_json+="\"$safe_addr_str\""
       first=0
     else
-      pub_to_json+=",\"$addr_str\""
+      pub_to_json+=",\"$safe_addr_str\""
     fi
   done
   unset IFS
@@ -347,23 +348,25 @@ do_send() {
   IFS=','
   for addr_id in $pub_cc_ids; do
     [[ -z "$addr_id" ]] && continue
-    local addr_str
+    local addr_str safe_addr_str
     addr_str=$(lookup_address_id_to_string "$addr_id")
+    safe_addr_str=$(json_escape "$addr_str")
     if [[ $first -eq 1 ]]; then
-      pub_cc_json+="\"$addr_str\""
+      pub_cc_json+="\"$safe_addr_str\""
       first=0
     else
-      pub_cc_json+=",\"$addr_str\""
+      pub_cc_json+=",\"$safe_addr_str\""
     fi
   done
   unset IFS
   pub_cc_json+="]"
 
-  local sender_str
+  local sender_str safe_sender_str
   sender_str=$(lookup_address_id_to_string "$sender_addr_id")
+  safe_sender_str=$(json_escape "$sender_str")
 
   # Build response
-  success_json "\"message_id\":\"$msg_id\",\"conversation_id\":\"$cnv_id\",\"sender\":\"$sender_str\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"resolved_recipient_count\":$resolved_count,\"resolution_summary\":{\"logical_recipient_count\":$logical_count,\"resolved_recipient_count\":$resolved_count,\"skipped_inactive_member_count\":$skipped_inactive,\"deduped_recipient_count\":$deduped_count},\"sent_item_created\":true"
+  success_json "\"message_id\":\"$msg_id\",\"conversation_id\":\"$cnv_id\",\"sender\":\"$safe_sender_str\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"resolved_recipient_count\":$resolved_count,\"resolution_summary\":{\"logical_recipient_count\":$logical_count,\"resolved_recipient_count\":$resolved_count,\"skipped_inactive_member_count\":$skipped_inactive,\"deduped_recipient_count\":$deduped_count},\"sent_item_created\":true"
 }
 
 # do_send_in_conversation — Like do_send but reuses an existing conversation and sets parent.
