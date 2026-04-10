@@ -368,7 +368,7 @@ do_send() {
 
 # do_send_in_conversation — Like do_send but reuses an existing conversation and sets parent.
 # Used internally by do_reply.
-# Args: sender_addr_id, cnv_id, parent_msg_id, to_addr_ids (comma-sep IDs), cc_addr_ids (comma-sep IDs), subject, body, urgency
+# Args: sender_addr_id, cnv_id, parent_msg_id, to_addr_ids (comma-sep IDs), cc_addr_ids (comma-sep IDs), subject, body, urgency, references_json
 do_send_in_conversation() {
   local sender_addr_id="$1"
   local cnv_id="$2"
@@ -378,6 +378,7 @@ do_send_in_conversation() {
   local subject="${6:-}"
   local body="${7:-}"
   local urgency="${8:-normal}"
+  local references_json="${9:-[]}"
 
   local ts
   ts=$(now_ms)
@@ -543,6 +544,51 @@ do_send_in_conversation() {
   done
   unset IFS
 
+  # Insert message references
+  if [[ "$references_json" != "[]" && -n "$references_json" ]]; then
+    # Parse references JSON using sqlite3
+    local ref_count
+    ref_count=$(sqlite3 :memory: "SELECT json_array_length('$references_json');")
+    local ref_i=0
+    while [[ $ref_i -lt $ref_count ]]; do
+      local ref_id
+      ref_id=$(generate_id "ref_")
+      local ref_kind ref_value ref_label ref_mime ref_meta
+      ref_kind=$(sqlite3 :memory: "SELECT json_extract('$references_json', '$[$ref_i].kind');")
+      ref_value=$(sqlite3 :memory: "SELECT json_extract('$references_json', '$[$ref_i].value');")
+      ref_label=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].label'), '');")
+      ref_mime=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].mime_type'), '');")
+      ref_meta=$(sqlite3 :memory: "SELECT COALESCE(json_extract('$references_json', '$[$ref_i].metadata'), '');")
+
+      local safe_ref_kind safe_ref_value safe_ref_label safe_ref_mime safe_ref_meta
+      safe_ref_kind=$(sql_escape "$ref_kind")
+      safe_ref_value=$(sql_escape "$ref_value")
+      safe_ref_label=$(sql_escape "$ref_label")
+      safe_ref_mime=$(sql_escape "$ref_mime")
+      safe_ref_meta=$(sql_escape "$ref_meta")
+
+      sql+="INSERT INTO message_references (id, message_id, ordinal, ref_kind, ref_value, label, mime_type, metadata_json)"
+      sql+=" VALUES ('$ref_id', '$msg_id', $((ref_i + 1)), '$safe_ref_kind', '$safe_ref_value',"
+      if [[ -z "$ref_label" ]]; then
+        sql+=" NULL,"
+      else
+        sql+=" '$safe_ref_label',"
+      fi
+      if [[ -z "$ref_mime" ]]; then
+        sql+=" NULL,"
+      else
+        sql+=" '$safe_ref_mime',"
+      fi
+      if [[ -z "$ref_meta" ]]; then
+        sql+=" NULL);"
+      else
+        sql+=" '$safe_ref_meta');"
+      fi
+
+      ref_i=$((ref_i + 1))
+    done
+  fi
+
   # Deliveries + sources + events
   for addr_id in "${_ao2[@]}"; do
     local eff_role="${_ar2[$addr_id]}"
@@ -588,7 +634,7 @@ do_send_in_conversation() {
 
 # do_reply — Execute a reply transaction.
 # Args: actor_addr_id, target_msg_id, all_flag (0/1), explicit_to (comma-sep addr IDs),
-#        explicit_cc (comma-sep addr IDs), subject, body, urgency
+#        explicit_cc (comma-sep addr IDs), subject, body, urgency, references_json
 do_reply() {
   local actor_addr_id="$1"
   local target_msg_id="$2"
@@ -598,6 +644,7 @@ do_reply() {
   local subject="${6:-}"
   local body="${7:-}"
   local urgency="${8:-normal}"
+  local references_json="${9:-[]}"
 
   # Resolve target via resolve_reply (delivery first, then sent_item)
   local reply_result
@@ -661,5 +708,5 @@ do_reply() {
   fi
 
   # Delegate to do_send_in_conversation
-  do_send_in_conversation "$actor_addr_id" "$cnv_id" "$target_msg_id" "$to_addr_ids" "$cc_addr_ids" "$subject" "$body" "$urgency"
+  do_send_in_conversation "$actor_addr_id" "$cnv_id" "$target_msg_id" "$to_addr_ids" "$cc_addr_ids" "$subject" "$body" "$urgency" "$references_json"
 }
