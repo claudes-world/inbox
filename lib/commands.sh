@@ -205,7 +205,7 @@ cmd_list() {
   local rows
   rows=$(printf '%s\n' \
     "PRAGMA foreign_keys = ON;" \
-    ".separator \"$(printf '\t')\"" \
+    ".separator \"$(printf '\x1f')\"" \
     "SELECT m.id, m.conversation_id, m.subject, m.body, m.created_at_ms,
       d.engagement_state, d.visibility_state, d.effective_role, d.delivered_at_ms, d.id as delivery_id
     FROM deliveries d
@@ -224,7 +224,7 @@ cmd_list() {
     count=$((count + 1))
 
     local m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id
-    IFS=$'\t' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
+    IFS=$'\x1f' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
 
     # Get sender
     local sender_id sender_str safe_m_id
@@ -323,14 +323,14 @@ cmd_read() {
   local msg_row
   msg_row=$(printf '%s\n' \
     "PRAGMA foreign_keys = ON;" \
-    ".separator \"$(printf '\t')\"" \
-    "SELECT id, conversation_id, parent_message_id, sender_address_id,
+    ".separator \"$(printf '\x1f')\"" \
+    "SELECT id, conversation_id, COALESCE(parent_message_id, '') as parent_message_id, sender_address_id,
       subject, body, sender_urgency, created_at_ms
     FROM messages WHERE id = '$safe_msg_id';" \
     | sqlite3 "$INBOX_DB")
 
   local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
-  IFS=$'\t' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+  IFS=$'\x1f' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
 
   local sender_str
   sender_str=$(lookup_address_id_to_string "$m_sender_id")
@@ -802,8 +802,8 @@ cmd_thread() {
   local thread_rows
   thread_rows=$(printf '%s\n' \
     "PRAGMA foreign_keys = ON;" \
-    ".separator \"$(printf '\t')\"" \
-    "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
+    ".separator \"$(printf '\x1f')\"" \
+    "SELECT m.id, m.conversation_id, COALESCE(m.parent_message_id, '') as parent_message_id, m.sender_address_id,
       m.subject, m.body, m.sender_urgency, m.created_at_ms,
       COALESCE(d.id, '') as delivery_id,
       COALESCE(d.effective_role, '') as effective_role,
@@ -838,7 +838,7 @@ cmd_thread() {
     count=$((count + 1))
 
     local t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis
-    IFS=$'\t' read -r t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
+    IFS=$'\x1f' read -r t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
 
     # Parent redaction
     local redacted_parent="null"
