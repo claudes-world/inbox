@@ -1,0 +1,5 @@
+{
+  "name": "tryinbox",
+  "private": true,
+  "workspaces": ["packages/*"]
+}
