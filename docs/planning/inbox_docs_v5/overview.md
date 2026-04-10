@@ -61,7 +61,7 @@ The MVP is intentionally narrow:
 ## Operational layer note
 Experimental mode can expose tiered future surfaces (`core`, `broad`, `frontier`) and capture modes (`safe`, `dangerous-full-context`) for product learning. The real `inbox give-feedback` command closes the loop by letting agents describe desired workflows and outcomes.
 
-Telemetry and experimental discovery mode are part of MVP operations, but they are not core protocol primitives. The core model and invariants describe message, delivery, and visibility physics. Telemetry must not write protocol state, and discovery mode must be explicitly enabled (for example via `INBOX_DISCOVERY_MODE=1`) and must not mutate core mail state for unimplemented commands. Operational concerns are specified in:
+Telemetry and experimental discovery mode are part of MVP operations, but they are not core protocol primitives. The core model and invariants describe message, delivery, and visibility physics. Telemetry must not write protocol state, and discovery mode must be explicitly enabled (for example via `INBOX_EXPERIMENTAL_MODE=1`) and must not mutate core mail state for unimplemented commands. Operational concerns are specified in:
 - `mvp-spec.md` for command-level operational rules, experimental profiles, and `give-feedback`
 - `quality-gates-and-uat.md` for testing and gating
 - `integration-seams.md` for observability, capture, and CLI seam definitions

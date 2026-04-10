@@ -128,7 +128,6 @@ Expose more speculative future surfaces. This tier should only be used intention
 #### Additional nouns
 - `filters`
 - `addresses`
-- `config`
 - `api`
 - `tags`
 - `folders`
@@ -210,6 +209,8 @@ inbox give-feedback \
 For longer feedback, implementations may also support:
 - `--wanted-file`
 - piped stdin as the feedback body
+
+Body source rule: `--wanted`, `--wanted-file`, and piped stdin are mutually exclusive. If more than one is detected, fail with `invalid_argument`.
 
 ### Behavior
 - must never mutate Inbox protocol tables

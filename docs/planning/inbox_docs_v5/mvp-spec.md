@@ -489,6 +489,9 @@ Required public prefixes:
 - `msg_...`
 - `cnv_...`
 
+Operational prefix:
+- `fbk_...` (feedback subsystem, not protocol state)
+
 Recommendation: UUIDv7-style sortable IDs with prefixes applied at creation time.
 Delivery IDs remain internal. They may appear in JSON/debug output, but they are not the public handle.
 
@@ -510,6 +513,7 @@ Delivery IDs remain internal. They may appear in JSON/debug output, but they are
 - `3` invalid_state
 - `4` permission_denied
 - `5` internal_error
+- `6` coming_soon (experimental mode only)
 
 ### Error envelope and mapping
 Canonical JSON error envelope:
@@ -759,6 +763,7 @@ If not found:
 
 History includes actor-visible hidden messages too, because history is explicit context browsing, not a default list view.
 The count `N` refers to additional earlier messages before the current message; the current message itself is not counted toward `N`.
+Window selection: select the N messages with the highest `created_at_ms` (tiebreaker: `id` descending) that are strictly earlier than the current message's `created_at_ms`, then return them oldest-to-newest.
 Returned history items are ordered oldest-to-newest within the selected prior window.
 In JSON output, `parent_message_id` is returned as `null` when the parent is not visible through the same union. In text output, hide the parent id and either omit the parent line or render a redacted placeholder.
 
@@ -796,7 +801,7 @@ Without `--all`:
 With `--all`:
 - use original public logical `To` / `Cc` headers in stored ordinal order
 - do not use old expanded delivery snapshots
-- append the original sender as an implicit reply target after those stored public headers if not already present
+- append the original sender as an implicit `to` reply target after those stored public headers if not already present
 - append any explicit `--to` / `--cc` additions in argv order
 - remove the acting address from the candidate reply-all audience regardless of how they originally received the message
 - then apply the same logical-header normalization rules as `send` (exact same-role duplicates deduped, cross-role duplicates preserved)
@@ -860,11 +865,12 @@ A thread item is included if either:
 
 No message is included based on conversation membership alone.
 Hidden-but-owned messages remain visible in thread output.
+Thread does not accept `--visibility`; hidden-but-owned items are always included.
 If both received and sent views exist for the same message (self-send/self-inclusion), include the message once and prefer `view_kind = received`.
 
 ### Windowing
 `thread` supports `--since`, `--until`, `--limit`, and optional `--full`.
-Apply time bounds first, then select the newest visible `N` messages from the remaining set.
+Apply time bounds first. Time bounds (`--since`/`--until`) filter against `messages.created_at_ms`, the canonical message timestamp. Then select the newest visible `N` messages from the remaining set.
 Default behavior:
 - select newest visible `N` messages in the conversation (`ORDER BY created_at_ms DESC, id DESC LIMIT N`)
 - then return those selected messages oldest-to-newest within that window
@@ -939,6 +945,7 @@ Collect structured product-learning feedback from agents without mutating Inbox 
 - acting address must resolve and be active
 - `--feature` is required
 - `--kind` is required and must be one of `verb|noun|flag|workflow`
+- `--wanted`, `--wanted-file`, and piped stdin are mutually exclusive body sources, following the same 'exactly one body source' rule as `send`. If more than one is detected, fail with `invalid_argument`.
 - feedback body uses the same “exactly one body source” rule as `send` if stdin/file support is used
 
 ### Behavior

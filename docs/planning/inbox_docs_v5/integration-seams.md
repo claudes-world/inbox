@@ -150,6 +150,7 @@ Freeze the CLI exit-code mapping:
 - `3` invalid_state
 - `4` permission_denied
 - `5` internal_error
+- `6` coming_soon (experimental mode only)
 
 The JSON error envelope and the exit code must agree on the same high-level outcome class.
 
