@@ -479,7 +479,6 @@ cmd_reply() {
     unset IFS
   fi
 
-  # Build references JSON
   local refs_json="[]"
   if [[ ${#_REF_KINDS[@]} -gt 0 ]]; then
     refs_json=$(build_refs_json)
@@ -679,7 +678,6 @@ cmd_sent_unhide() {
 cmd_thread() {
   local cnv_id="" since_ms="" until_ms="" limit=50 full_flag=0
 
-  # First positional arg is the conversation ID
   [[ $# -gt 0 && "$1" != --* ]] && { cnv_id="$1"; shift; }
 
   while [[ $# -gt 0 ]]; do
@@ -713,20 +711,16 @@ cmd_thread() {
 
   _require_actor; local actor_id="$ACTOR_ID"
 
-  # SQL-escape cnv_id for direct SQL interpolation
   local safe_cnv_id
   safe_cnv_id="$(sql_escape "$cnv_id")"
 
-  # Get visible message IDs for parent redaction
   local visible_ids
   visible_ids=$(resolve_thread_msg_ids "$cnv_id" "$actor_id")
 
-  # Build time-bounded query
   local time_clause=""
   [[ -n "$since_ms" ]] && time_clause="$time_clause AND m.created_at_ms >= $since_ms"
   [[ -n "$until_ms" ]] && time_clause="$time_clause AND m.created_at_ms < $until_ms"
 
-  # Get total visible count (for truncation metadata)
   local total_visible_count
   total_visible_count=$(db_count "SELECT count(DISTINCT m.id)
     FROM messages m
@@ -799,13 +793,11 @@ cmd_thread() {
       item+=",\"visibility_state\":\"$t_s_vis\""
     fi
 
-    # Body preview or full body
     if [[ "$full_flag" == "1" ]]; then
       local safe_body="${t_body//\\/\\\\}"; safe_body="${safe_body//\"/\\\"}"
       safe_body="${safe_body//$'\n'/\\n}"
       item+=",\"body\":\"$safe_body\""
 
-      # References for full mode
       local refs_json="["
       local first_ref=1
       local ref_rows
@@ -859,7 +851,6 @@ cmd_directory_list() {
 
   _require_actor; local actor_id="$ACTOR_ID"
 
-  # Validate --kind against allowed enum values
   if [[ -n "$kind_filter" ]]; then
     case "$kind_filter" in
       agent|human|service|list) ;; # valid
@@ -991,7 +982,6 @@ cmd_directory_members() {
     format_error "invalid_argument" "address is not a list: $address" "address" || exit $?
   fi
 
-  # Get members in ordinal order
   local members_json="["
   local first=1
 
@@ -1053,7 +1043,7 @@ cmd_give_feedback() {
 
   _require_actor; local actor_id="$ACTOR_ID"
 
-  # Parse body (wanted text) — only count stdin when it's actually a pipe/redirect
+  # Only count stdin when it's actually a pipe/redirect
   local stdin_is_pipe=0
   if [[ ! -t 0 ]] && [[ -p /dev/stdin || -f /dev/stdin ]]; then
     stdin_is_pipe=1
@@ -1063,7 +1053,6 @@ cmd_give_feedback() {
   parse_body_source "$wanted" "$body_file" "$stdin_is_pipe" "$body_flag_set" || exit $?
   local feedback_body="$PARSED_BODY"
 
-  # Record feedback via experimental module
   local feedback_id
   feedback_id=$(do_give_feedback "$actor_id" "$feature" "$kind" "$feedback_body" "$context" "$outcome" "$command_text")
 

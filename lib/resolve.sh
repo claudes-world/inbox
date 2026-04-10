@@ -12,7 +12,6 @@ resolve_actor() {
     return "$EXIT_INVALID_ARGUMENT"
   fi
 
-  # Parse local_part@host
   local local_part host
   if [[ "$address" != *@* ]]; then
     error_json "invalid_argument" "invalid address format: missing @" "address"
@@ -26,12 +25,10 @@ resolve_actor() {
     return "$EXIT_INVALID_ARGUMENT"
   fi
 
-  # Escape for SQL safety
   local escaped_local escaped_host
   escaped_local=$(sql_escape "$local_part")
   escaped_host=$(sql_escape "$host")
 
-  # Look up in addresses table
   local row
   row=$(db_query "SELECT id, local_part, host, kind, display_name, is_active, is_listed, classification
     FROM addresses WHERE local_part = '$escaped_local' AND host = '$escaped_host';")
@@ -42,19 +39,16 @@ resolve_actor() {
     return "$EXIT_NOT_FOUND"
   fi
 
-  # Parse fields
   local addr_id addr_kind addr_active
   addr_id=$(echo "$row" | cut -d'|' -f1)
   addr_kind=$(echo "$row" | cut -d'|' -f4)
   addr_active=$(echo "$row" | cut -d'|' -f6)
 
-  # Check is_active
   if [[ "$addr_active" != "1" ]]; then
     error_json "permission_denied" "acting address is inactive" "address"
     return "$EXIT_PERMISSION_DENIED"
   fi
 
-  # Return the full row (pipe-delimited)
   echo "$row"
   return 0
 }
@@ -208,7 +202,6 @@ validate_direct_recipient() {
   local_part="${address%%@*}"
   host="${address#*@}"
 
-  # Escape for SQL safety
   local escaped_local escaped_host
   escaped_local=$(sql_escape "$local_part")
   escaped_host=$(sql_escape "$host")

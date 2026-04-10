@@ -18,7 +18,6 @@ do_send() {
   local ts
   ts=$(now_ms)
 
-  # Generate IDs
   local cnv_id msg_id
   cnv_id=$(generate_id "cnv_")
   msg_id=$(generate_id "msg_")
@@ -28,7 +27,6 @@ do_send() {
   local logical_count=0
   local all_direct_addr_ids=""
 
-  # Process --to list
   local IFS=','
   for addr_str in $to_list; do
     [[ -z "$addr_str" ]] && continue
@@ -47,7 +45,6 @@ do_send() {
   done
   unset IFS
 
-  # Process --cc list
   IFS=','
   for addr_str in $cc_list; do
     [[ -z "$addr_str" ]] && continue
@@ -72,7 +69,6 @@ do_send() {
   fi
 
   # --- Phase 2: Build normalized public headers (dedupe same-role, preserve cross-role) ---
-  # Public headers use the logical addresses (including list addresses)
   local pub_to_ids="" pub_cc_ids=""
   declare -A _pub_to_seen _pub_cc_seen
 
@@ -105,8 +101,6 @@ do_send() {
   unset IFS
 
   # --- Phase 3: Expand lists and collect actual recipients ---
-  # For each direct address: if it's a list, expand; if it's not, add directly
-  # Track delivery sources: addr_id -> list of "source_addr_id|source_role|source_kind"
   declare -A _actual_recipients  # addr_id -> best_role
   _actual_order=()               # preserve order (avoid unbound with set -u)
   declare -A _delivery_sources   # addr_id -> newline-separated "source_addr_id|source_role|source_kind"
@@ -140,12 +134,10 @@ do_send() {
     fi
   }
 
-  # Process to recipients
   IFS=','
   for addr_id in $to_addr_ids; do
     [[ -z "$addr_id" ]] && continue
     if is_list_address "$addr_id"; then
-      # Expand list
       local members
       members=$(expand_list "$addr_id")
       local member_count=0
@@ -157,7 +149,6 @@ do_send() {
         member_count=$((member_count + 1))
       done <<< "$members"
 
-      # Count skipped inactive members
       local total_members
       total_members=$(db_count "SELECT count(*) FROM group_members WHERE group_address_id = '$addr_id';")
       skipped_inactive=$((skipped_inactive + total_members - member_count))
@@ -167,7 +158,6 @@ do_send() {
   done
   unset IFS
 
-  # Process cc recipients
   IFS=','
   for addr_id in $cc_addr_ids; do
     [[ -z "$addr_id" ]] && continue
@@ -195,28 +185,23 @@ do_send() {
   local resolved_count=${#_actual_order[@]}
   local deduped_count=$((total_before_dedupe - resolved_count))
 
-  # Zero recipients check
   if [[ $resolved_count -eq 0 ]]; then
     error_json "invalid_state" "no recipients resolved after expansion and filtering"
     return "$EXIT_INVALID_STATE"
   fi
 
   # --- Phase 4: Build SQL transaction ---
-  # Escape single quotes in text fields for SQL
   local safe_subject safe_body
   safe_subject=$(sql_escape "$subject")
   safe_body=$(sql_escape "$body")
 
   local sql=""
 
-  # 1. Create conversation
   sql+="INSERT INTO conversations (id, created_at_ms) VALUES ('$cnv_id', $ts);"
 
-  # 2. Create message
   sql+="INSERT INTO messages (id, conversation_id, parent_message_id, sender_address_id, subject, body, sender_urgency, created_at_ms)"
   sql+=" VALUES ('$msg_id', '$cnv_id', NULL, '$sender_addr_id', '$safe_subject', '$safe_body', '$urgency', $ts);"
 
-  # 3. Insert normalized public logical recipient headers
   local ordinal=0
   IFS=','
   for addr_id in $pub_to_ids; do
@@ -241,9 +226,7 @@ do_send() {
   done
   unset IFS
 
-  # 4. Insert message references
   if [[ "$references_json" != "[]" && -n "$references_json" ]]; then
-    # Parse references JSON using sqlite3 (escape single quotes for SQL literals)
     local safe_sql_refs
     safe_sql_refs="$(printf '%s' "$references_json" | sed "s/'/''/g")"
     local ref_count
@@ -288,7 +271,6 @@ do_send() {
     done
   fi
 
-  # 5-8. Create deliveries, delivery_sources, delivered events
   for addr_id in "${_actual_order[@]}"; do
     local eff_role="${_actual_recipients[$addr_id]}"
     local dly_id
@@ -296,11 +278,9 @@ do_send() {
     local evt_id
     evt_id=$(generate_id "evt_")
 
-    # Create delivery
     sql+="INSERT INTO deliveries (id, message_id, recipient_address_id, effective_role, engagement_state, visibility_state, delivered_at_ms)"
     sql+=" VALUES ('$dly_id', '$msg_id', '$addr_id', '$eff_role', 'unread', 'active', $ts);"
 
-    # Create delivery_sources
     local sources="${_delivery_sources[$addr_id]}"
     while IFS= read -r src_line; do
       [[ -z "$src_line" ]] && continue
@@ -312,21 +292,17 @@ do_send() {
       sql+=" VALUES ('$dly_id', '$src_addr', '$src_role', '$src_kind');"
     done <<< "$sources"
 
-    # Create delivered event
     sql+="INSERT INTO delivery_events (id, delivery_id, event_type, change_kind, actor_address_id, event_at_ms, engagement_state_after, visibility_state_after)"
     sql+=" VALUES ('$evt_id', '$dly_id', 'delivered', 'delivered', NULL, $ts, 'unread', 'active');"
   done
 
-  # 9. Create sent_item
   sql+="INSERT INTO sent_items (message_id, visibility_state) VALUES ('$msg_id', 'active');"
 
-  # Execute the full transaction
   if ! db_transaction "$sql" 2>/dev/null; then
     error_json "internal_error" "send transaction failed"
     return "$EXIT_INTERNAL_ERROR"
   fi
 
-  # Build public_to and public_cc arrays for response
   local pub_to_json="["
   local first=1
   IFS=','
@@ -367,7 +343,6 @@ do_send() {
   sender_str=$(lookup_address_id_to_string "$sender_addr_id")
   safe_sender_str=$(json_escape "$sender_str")
 
-  # Build response
   success_json "\"message_id\":\"$msg_id\",\"conversation_id\":\"$cnv_id\",\"sender\":\"$safe_sender_str\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"resolved_recipient_count\":$resolved_count,\"resolution_summary\":{\"logical_recipient_count\":$logical_count,\"resolved_recipient_count\":$resolved_count,\"skipped_inactive_member_count\":$skipped_inactive,\"deduped_recipient_count\":$deduped_count},\"sent_item_created\":true"
 }
 
@@ -393,7 +368,6 @@ do_send_in_conversation() {
   local logical_count=0
   local all_addr_ids=""
 
-  # Count logical recipients
   IFS=','
   for addr_id in $to_addr_ids; do
     [[ -z "$addr_id" ]] && continue
@@ -405,7 +379,6 @@ do_send_in_conversation() {
   done
   unset IFS
 
-  # --- Validate all direct recipient IDs ---
   IFS=','
   for addr_id in $to_addr_ids; do
     [[ -z "$addr_id" ]] && continue
@@ -421,7 +394,6 @@ do_send_in_conversation() {
   done
   unset IFS
 
-  # --- Build public headers (dedupe same-role) ---
   local pub_to_ids="" pub_cc_ids=""
   declare -A _pub_to_seen2 _pub_cc_seen2
 
@@ -442,7 +414,6 @@ do_send_in_conversation() {
   done
   unset IFS
 
-  # --- Expand lists and collect actual recipients ---
   declare -A _ar2 _ds2
   _ao2=()
   local skipped_inactive=0
@@ -511,20 +482,18 @@ do_send_in_conversation() {
     return "$EXIT_INVALID_STATE"
   fi
 
-  # --- Build SQL ---
   local safe_subject safe_body
   safe_subject=$(sql_escape "$subject")
   safe_body=$(sql_escape "$body")
   local sql=""
 
-  # Create message (conversation already exists; set parent)
+  # Conversation already exists; set parent
   local parent_clause="NULL"
   [[ -n "$parent_msg_id" ]] && parent_clause="'$parent_msg_id'"
 
   sql+="INSERT INTO messages (id, conversation_id, parent_message_id, sender_address_id, subject, body, sender_urgency, created_at_ms)"
   sql+=" VALUES ('$msg_id', '$cnv_id', $parent_clause, '$sender_addr_id', '$safe_subject', '$safe_body', '$urgency', $ts);"
 
-  # Public headers
   local ordinal=0
   IFS=','
   for addr_id in $pub_to_ids; do
@@ -549,9 +518,7 @@ do_send_in_conversation() {
   done
   unset IFS
 
-  # Insert message references
   if [[ "$references_json" != "[]" && -n "$references_json" ]]; then
-    # Parse references JSON using sqlite3 (escape single quotes for SQL literals)
     local safe_sql_refs
     safe_sql_refs="$(printf '%s' "$references_json" | sed "s/'/''/g")"
     local ref_count
@@ -596,7 +563,6 @@ do_send_in_conversation() {
     done
   fi
 
-  # Deliveries + sources + events
   for addr_id in "${_ao2[@]}"; do
     local eff_role="${_ar2[$addr_id]}"
     local dly_id evt_id
@@ -621,7 +587,6 @@ do_send_in_conversation() {
     sql+=" VALUES ('$evt_id', '$dly_id', 'delivered', 'delivered', NULL, $ts, 'unread', 'active');"
   done
 
-  # Sent item
   sql+="INSERT INTO sent_items (message_id, visibility_state) VALUES ('$msg_id', 'active');"
 
   if ! db_transaction "$sql" 2>/dev/null; then
@@ -629,7 +594,6 @@ do_send_in_conversation() {
     return "$EXIT_INTERNAL_ERROR"
   fi
 
-  # Build response
   local sender_str
   sender_str=$(lookup_address_id_to_string "$sender_addr_id")
 
@@ -653,11 +617,9 @@ do_reply() {
   local urgency="${8:-normal}"
   local references_json="${9:-[]}"
 
-  # Resolve target via resolve_reply (delivery first, then sent_item)
   local reply_result
   reply_result=$(resolve_reply "$target_msg_id" "$actor_addr_id") || return $?
 
-  # Get conversation_id from target message
   local cnv_id
   cnv_id=$(db_query "SELECT conversation_id FROM messages WHERE id = '$target_msg_id';")
   if [[ -z "$cnv_id" ]]; then
@@ -665,31 +627,26 @@ do_reply() {
     return "$EXIT_NOT_FOUND"
   fi
 
-  # Default subject = original subject (NO "Re:" prefix)
+  # NO "Re:" prefix — preserve original subject
   if [[ -z "$subject" ]]; then
     subject=$(db_query "SELECT subject FROM messages WHERE id = '$target_msg_id';")
   fi
 
-  # Build audience
   local to_addr_ids="" cc_addr_ids=""
 
   if [[ "$all_flag" == "1" ]]; then
-    # Use construct_reply_all_audience
     local audience
     audience=$(construct_reply_all_audience "$target_msg_id" "$actor_addr_id" "$explicit_to" "$explicit_cc") || return $?
     to_addr_ids=$(echo "$audience" | grep '^to:' | sed 's/^to://')
     cc_addr_ids=$(echo "$audience" | grep '^cc:' | sed 's/^cc://')
   else
-    # Default audience = original sender only
-    # Note: actor is NOT excluded in non-all reply. Self-delivery is permitted
+    # Actor is NOT excluded in non-all reply. Self-delivery is permitted
     # per MVP design — replying to your own message sends to yourself.
     local original_sender
     original_sender=$(db_query "SELECT sender_address_id FROM messages WHERE id = '$target_msg_id';")
 
     if [[ -n "$explicit_to" ]]; then
-      # Explicit --to provided, add original sender + explicit recipients
       to_addr_ids="$original_sender"
-      # Remove actor from explicit_to
       IFS=','
       for addr_id in $explicit_to; do
         [[ -z "$addr_id" || "$addr_id" == "$actor_addr_id" ]] && continue
@@ -710,12 +667,10 @@ do_reply() {
     fi
   fi
 
-  # If no audience resolved (e.g., replying to own sent message without --all and no explicit)
-  # self-only reply is allowed
+  # Self-only reply when replying to own sent message without --all
   if [[ -z "$to_addr_ids" && -z "$cc_addr_ids" ]]; then
     to_addr_ids="$actor_addr_id"
   fi
 
-  # Delegate to do_send_in_conversation
   do_send_in_conversation "$actor_addr_id" "$cnv_id" "$target_msg_id" "$to_addr_ids" "$cc_addr_ids" "$subject" "$body" "$urgency" "$references_json"
 }
