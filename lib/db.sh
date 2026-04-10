@@ -24,7 +24,7 @@ db_init() {
   local table_count
   table_count=$(sqlite3 "$INBOX_DB" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='addresses';")
   if [[ "$table_count" -eq 0 ]]; then
-    # Apply schema — strip PRAGMA lines since we set them above per-connection
+    # Apply schema — PRAGMAs in the schema file are idempotent (also set above per-connection)
     local schema_file="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/schema/001-init.sql"
     if [[ ! -f "$schema_file" ]]; then
       echo "error: schema file not found: $schema_file" >&2
@@ -95,8 +95,7 @@ db_transaction() {
     fi
     return 0
   else
-    # Transaction failed — attempt explicit rollback in case BEGIN succeeded
-    sqlite3 "$INBOX_DB" "ROLLBACK;" 2>/dev/null || true
+    # Transaction failed — sqlite3 -bail auto-rolls back on process exit
     echo "$output" >&2
     return 1
   fi

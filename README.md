@@ -20,4 +20,4 @@ bin/inbox whoami
 ## Requirements
 
 - Bash 4.4+
-- sqlite3 CLI (3.35+, with JSON1 extension)
+- sqlite3 CLI (3.37+, with STRICT tables and JSON1 extension)

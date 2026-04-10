@@ -28,6 +28,7 @@ now_ms() {
 # Format: ${prefix}${timestamp_hex}_${random_hex}
 # - timestamp: current time in ms, hex-encoded, zero-padded to 12 chars
 # - random: 8 random hex chars from /dev/urandom
+# Uses od and tr from coreutils (not pure bash builtins).
 # Usage: generate_id "msg_"
 generate_id() {
   local prefix="${1:-}"
@@ -49,14 +50,32 @@ die() {
   exit "$code"
 }
 
-# json_escape — Escape a string for safe JSON embedding
+# json_escape — Escape a string for safe JSON embedding (RFC 8259 compliant).
+# Handles backslash, double quote, the named control characters (\b \t \n \f \r),
+# and all remaining control characters 0x00-0x1F as \u00XX sequences.
 json_escape() {
   local s="$1"
-  s="${s//\\/\\\\}"      # backslash
+  s="${s//\\/\\\\}"      # backslash (must be first)
   s="${s//\"/\\\"}"      # double quote
-  s="${s//$'\n'/\\n}"    # newline
-  s="${s//$'\r'/\\r}"    # carriage return
+  s="${s//$'\b'/\\b}"    # backspace
   s="${s//$'\t'/\\t}"    # tab
+  s="${s//$'\n'/\\n}"    # newline
+  s="${s//$'\f'/\\f}"    # form feed
+  s="${s//$'\r'/\\r}"    # carriage return
+  # Handle remaining control characters (0x01-0x1F) as \u00XX.
+  # NUL (0x00) is skipped: bash strings are NUL-terminated so NUL bytes
+  # cannot be stored in shell variables — attempting to substitute them
+  # silently drops the null and emits a warning. Callers should not pass
+  # NUL-containing strings.
+  local i char_val hex
+  for i in $(seq 1 31); do
+    case $i in
+      8|9|10|12|13) continue ;; # Already handled: \b \t \n \f \r
+    esac
+    char_val=$(printf "\\x$(printf '%02x' $i)")
+    hex=$(printf '\\u%04x' $i)
+    s="${s//$char_val/$hex}"
+  done
   echo "$s"
 }
 
