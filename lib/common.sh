@@ -49,11 +49,22 @@ die() {
   exit "$code"
 }
 
+# json_escape — Escape a string for safe JSON embedding
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"      # backslash
+  s="${s//\"/\\\"}"      # double quote
+  s="${s//$'\n'/\\n}"    # newline
+  s="${s//$'\r'/\\r}"    # carriage return
+  s="${s//$'\t'/\\t}"    # tab
+  echo "$s"
+}
+
 # error_json — Output a JSON error envelope to stdout.
 # Usage: error_json <code> <message> [target] [details_json]
 error_json() {
-  local code="${1:-internal_error}"
-  local message="${2:-unknown error}"
+  local code="$(json_escape "${1:-internal_error}")"
+  local message="$(json_escape "${2:-unknown error}")"
   local target="${3:-null}"
   local details="${4:-null}"
 

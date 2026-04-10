@@ -89,7 +89,7 @@ db_transaction() {
   full_sql="$(printf 'PRAGMA foreign_keys = ON;\nBEGIN;\n%s\nCOMMIT;\n' "$sql")"
 
   local output
-  if output=$(sqlite3 "$INBOX_DB" "$full_sql" 2>&1); then
+  if output=$(sqlite3 -bail "$INBOX_DB" "$full_sql" 2>&1); then
     if [[ -n "$output" ]]; then
       echo "$output"
     fi

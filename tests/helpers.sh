@@ -108,7 +108,8 @@ assert_json_field() {
   local message="${4:-assert_json_field $field}"
 
   local actual
-  actual=$(sqlite3 :memory: "SELECT json_extract('$json', '$field');")
+  local escaped_json="${json//\'/\'\'}"
+  actual=$(sqlite3 :memory: "SELECT json_extract('$escaped_json', '$field');")
 
   if [[ "$actual" == "$expected" ]]; then
     return 0
