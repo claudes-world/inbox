@@ -1,32 +1,1825 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inbox — Landing Variant 1</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inbox — Durable Messaging for Autonomous Agents</title>
+  <meta name="description" content="Email-grade messaging infrastructure for AI agents. Address-based routing, conversation threading, immutable delivery guarantees. Shell-native. Zero dependencies. Built on SQLite.">
+  <link rel="canonical" href="https://tryinbox.sh/">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Inbox — Durable Messaging for Autonomous Agents">
+  <meta property="og:description" content="Email-grade messaging infrastructure for AI agents. Built on SQLite. Zero dependencies. Running in 30 seconds.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tryinbox.sh/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Inbox — Durable Messaging for Autonomous Agents">
+  <meta name="twitter:description" content="Email-grade messaging for AI agents. SQLite-backed. Zero deps. 30-second setup.">
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Inbox",
+    "description": "Durable messaging system for autonomous agents",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS",
+    "license": "https://opensource.org/licenses/MIT",
+    "url": "https://tryinbox.sh/",
+    "codeRepository": "https://github.com/claudes-world/inbox"
+  }
+  </script>
+
+  <!-- Inline SVG favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='28' font-family='monospace' fill='%2322d3ee'>I</text></svg>">
+
   <style>
+    /* ===== Design Tokens ===== */
+    :root {
+      --bg-primary:        #18181b;
+      --bg-secondary:      #27272a;
+      --bg-card:           #1c1c20;
+      --bg-card-hover:     #23232a;
+      --bg-terminal:       #0a0a0c;
+
+      --accent-cyan:       #22d3ee;
+      --accent-cyan-dim:   #0891b2;
+      --accent-cyan-glow:  rgba(34, 211, 238, 0.15);
+      --accent-green:      #4ade80;
+      --accent-green-dim:  #16a34a;
+      --accent-green-glow: rgba(74, 222, 128, 0.12);
+      --accent-blue:       #60a5fa;
+      --accent-blue-glow:  rgba(96, 165, 250, 0.12);
+      --accent-amber:      #fbbf24;
+      --accent-red:        #f87171;
+
+      --text-primary:      #fafafa;
+      --text-secondary:    #a1a1aa;
+      --text-tertiary:     #71717a;
+      --text-code:         #22d3ee;
+
+      --border-default:    #3f3f46;
+      --border-glow-cyan:  rgba(34, 211, 238, 0.3);
+      --border-glow-green: rgba(74, 222, 128, 0.25);
+
+      --focus-ring:        0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-cyan);
+      --overlay-gradient:  linear-gradient(180deg, transparent 0%, var(--bg-primary) 100%);
+
+      --font-mono:    'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Liberation Mono', monospace;
+      --font-sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+      --text-3xl-fluid: clamp(1.75rem, 5vw + 0.5rem, 3rem);
+      --section-padding-y-fluid: clamp(3rem, 8vw, 6rem);
+
+      --duration-fast:    150ms;
+      --duration-normal:  300ms;
+      --duration-slow:    600ms;
+      --duration-typing:  60ms;
+      --duration-pulse:   2s;
+      --ease-out:         cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-spring:      cubic-bezier(0.34, 1.56, 0.64, 1);
+
+      --fade-in-distance: 24px;
+      --fade-in-duration: 600ms;
+      --fade-in-stagger:  100ms;
+
+      --container-max:    72rem;
+      --card-padding:     1.5rem;
+      --card-radius:      0.5rem;
+      --grid-gap:         1.5rem;
+    }
+
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #18181b;
-      color: #f4f4f5;
-      min-height: 100vh;
+      font-family: var(--font-mono);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ===== Skip Link ===== */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--accent-cyan);
+      color: var(--bg-primary);
+      font-weight: 700;
+      border-radius: var(--card-radius);
+      z-index: 100;
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+    .skip-link:focus {
+      top: 1rem;
+    }
+
+    /* ===== Visually Hidden ===== */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /* ===== Container ===== */
+    .container {
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* ===== Nav ===== */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      padding: 1rem 1.5rem;
+      transition: background var(--duration-normal) ease, backdrop-filter var(--duration-normal) ease;
+    }
+    .nav.scrolled {
+      background: rgba(24, 24, 27, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-default);
+    }
+    .nav-inner {
+      max-width: var(--container-max);
+      margin: 0 auto;
       display: flex;
       align-items: center;
-      justify-content: center;
-      margin: 0;
+      justify-content: space-between;
     }
-    .wrap { text-align: center; }
-    h1 { font-size: 2rem; margin-bottom: 1rem; }
-    p { color: #a1a1aa; margin-bottom: 1.5rem; }
-    a { color: #3b82f6; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    .nav-wordmark {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+    .nav-wordmark span {
+      color: var(--accent-cyan);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color var(--duration-fast) ease;
+      font-family: var(--font-mono);
+    }
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--accent-cyan);
+    }
+    .nav-links .nav-cta {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--accent-cyan);
+      border-radius: var(--card-radius);
+      color: var(--accent-cyan);
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .nav-links .nav-cta:hover {
+      background: var(--accent-cyan-glow);
+    }
+
+    /* Hamburger */
+    .nav-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.5rem;
+      min-width: 44px;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+    }
+    .nav-hamburger span {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background: var(--text-primary);
+      transition: transform var(--duration-fast) ease, opacity var(--duration-fast) ease;
+      margin: 5px 0;
+    }
+    .nav-hamburger.open span:nth-child(1) {
+      transform: translateY(7px) rotate(45deg);
+    }
+    .nav-hamburger.open span:nth-child(2) {
+      opacity: 0;
+    }
+    .nav-hamburger.open span:nth-child(3) {
+      transform: translateY(-7px) rotate(-45deg);
+    }
+    .nav-mobile {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-default);
+      padding: 5rem 1.5rem 2rem;
+      z-index: 49;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .nav-mobile.open {
+      display: flex;
+    }
+    .nav-mobile a {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 0.75rem 0;
+      font-family: var(--font-mono);
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+    .nav-mobile a:hover {
+      color: var(--accent-cyan);
+    }
+
+    @media (max-width: 639px) {
+      .nav-links { display: none; }
+      .nav-hamburger { display: flex; }
+    }
+
+    /* ===== Section Base ===== */
+    .section {
+      padding: var(--section-padding-y-fluid) 0;
+    }
+    .section-heading {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 0.1em;
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+    .section-heading::after {
+      content: '';
+      display: block;
+      width: 3rem;
+      height: 2px;
+      background: var(--accent-cyan);
+      margin: 0.5rem auto 0;
+    }
+    .section-subtitle {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--text-secondary);
+      text-align: center;
+      max-width: 40rem;
+      margin: 0 auto 3rem;
+      line-height: 1.5;
+    }
+
+    /* ===== Scroll Animations ===== */
+    [data-animate="fade-up"] {
+      opacity: 0;
+      transform: translateY(var(--fade-in-distance));
+      transition: opacity var(--fade-in-duration) var(--ease-out),
+                  transform var(--fade-in-duration) var(--ease-out);
+    }
+    [data-animate="fade-up"].visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+      [data-animate="fade-up"] {
+        opacity: 1;
+        transform: none;
+      }
+      .connector-line {
+        stroke-dashoffset: 0 !important;
+      }
+    }
+
+    /* ===== Hero ===== */
+    .hero {
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      padding-top: 5rem;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(63, 63, 70, 0.3) 0.5px, transparent 0.5px),
+        linear-gradient(90deg, rgba(63, 63, 70, 0.3) 0.5px, transparent 0.5px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: var(--overlay-gradient);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .hero-inner {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+      width: 100%;
+    }
+    .hero-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .hero-status {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      animation: pulse-green var(--duration-pulse) ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); }
+      50%      { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+    }
+    .hero-tagline {
+      font-family: var(--font-sans);
+      font-size: var(--text-3xl-fluid);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-primary);
+    }
+    .hero-subtitle {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      max-width: 28rem;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 2rem;
+      background: var(--accent-cyan);
+      color: var(--bg-primary);
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--card-radius);
+      text-decoration: none;
+      min-height: 44px;
+      cursor: pointer;
+      transition: filter var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+      letter-spacing: 0.03em;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 0 20px var(--accent-cyan-glow);
+    }
+    .btn-primary:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 2rem;
+      background: transparent;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: 1px solid var(--accent-cyan);
+      border-radius: var(--card-radius);
+      text-decoration: none;
+      min-height: 44px;
+      cursor: pointer;
+      transition: background var(--duration-fast) ease;
+      letter-spacing: 0.03em;
+    }
+    .btn-secondary:hover {
+      background: var(--accent-cyan-glow);
+    }
+    .btn-secondary:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+    .btn-tertiary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 2rem;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      text-decoration: none;
+      min-height: 44px;
+      cursor: pointer;
+      transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+    }
+    .btn-tertiary:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+    .btn-tertiary:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    /* Terminal */
+    .terminal {
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      overflow: hidden;
+      position: relative;
+    }
+    .terminal-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(34, 211, 238, 0.05) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-default);
+      position: relative;
+      z-index: 1;
+    }
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .terminal-dot.red { background: var(--accent-red); }
+    .terminal-dot.amber { background: var(--accent-amber); }
+    .terminal-dot.green { background: var(--accent-green); }
+    .terminal-title {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      margin-left: 0.5rem;
+      font-family: var(--font-mono);
+    }
+    .terminal-body {
+      padding: 1rem 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      min-height: 280px;
+      position: relative;
+      z-index: 1;
+    }
+    .terminal-line {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .terminal-line.command {
+      color: var(--text-primary);
+    }
+    .terminal-line.output {
+      color: var(--text-secondary);
+      margin-bottom: 0.25rem;
+    }
+    .t-prompt { color: var(--accent-green); }
+    .t-cmd { color: var(--text-primary); font-weight: 700; }
+    .t-sub { color: var(--accent-cyan); }
+    .t-flag { color: var(--accent-amber); }
+    .t-str { color: var(--text-primary); }
+    .t-ok { color: var(--accent-green); }
+    .t-id { color: var(--text-tertiary); }
+    .t-label { color: var(--text-secondary); }
+    .t-status-g { color: var(--accent-green); }
+    .t-status-b { color: var(--accent-blue); }
+    .t-comment { color: var(--text-tertiary); }
+
+    @media (max-width: 1023px) {
+      .hero-inner {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+      .hero-text {
+        align-items: center;
+      }
+      .hero-subtitle {
+        max-width: 100%;
+      }
+      .hero-ctas {
+        justify-content: center;
+      }
+      .hero-status {
+        justify-content: center;
+      }
+    }
+    @media (max-width: 639px) {
+      .terminal-body {
+        font-size: 0.75rem;
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+    }
+
+    /* ===== Section 2: What is Inbox ===== */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--grid-gap);
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      padding: var(--card-padding);
+      transition: border-color var(--duration-normal) ease, box-shadow var(--duration-normal) ease;
+      outline: none;
+    }
+    .feature-card:hover,
+    .feature-card:focus-visible {
+      border-color: var(--accent-cyan-dim);
+      animation: border-glow var(--duration-pulse) ease-in-out infinite;
+    }
+    .feature-card:focus-visible {
+      box-shadow: var(--focus-ring);
+      animation: none;
+    }
+    @keyframes border-glow {
+      0%, 100% { box-shadow: 0 0 0 0px var(--border-glow-cyan); }
+      50%      { box-shadow: 0 0 0 3px var(--border-glow-cyan); }
+    }
+    .card-icon {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-bottom: 0.75rem;
+    }
+    .card-title {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-body {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .card-footer {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    /* ===== Section 3: How it Works ===== */
+    .steps-container {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 1rem;
+    }
+    .step-group {
+      display: flex;
+      align-items: flex-start;
+    }
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .step-tile {
+      width: 120px;
+      height: 120px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      margin-bottom: 1rem;
+    }
+    .step-number {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+    }
+    .step-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: var(--font-mono);
+    }
+    .step-desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      max-width: 160px;
+      line-height: 1.5;
+      font-family: var(--font-mono);
+    }
+    .step-arrow {
+      display: flex;
+      align-items: center;
+      padding-top: 48px;
+      flex-shrink: 0;
+    }
+    .step-arrow svg {
+      width: 40px;
+      height: 20px;
+    }
+
+    @media (max-width: 767px) {
+      .steps-container {
+        flex-direction: column;
+        align-items: center;
+        overflow-x: visible;
+      }
+      .step-group {
+        flex-direction: column;
+        align-items: center;
+      }
+      .step-tile {
+        width: 80px;
+        height: 80px;
+      }
+      .step-number {
+        font-size: 1.25rem;
+      }
+      .step-name {
+        font-size: 0.625rem;
+      }
+      .step-arrow {
+        padding-top: 0;
+        transform: rotate(90deg);
+      }
+    }
+
+    /* ===== Section 4: For Agents, By Agents ===== */
+    .agents-section {
+      background: var(--bg-secondary);
+      position: relative;
+    }
+    .agents-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(255, 255, 255, 0.015) 2px,
+        rgba(255, 255, 255, 0.015) 4px
+      );
+      pointer-events: none;
+    }
+    .agents-inner {
+      position: relative;
+      max-width: 40rem;
+      margin: 0 auto;
+    }
+    .agents-blockquote {
+      border-left: 3px solid var(--accent-cyan);
+      background: var(--accent-cyan-glow);
+      padding: 1.5rem;
+      border-radius: var(--card-radius);
+      margin-bottom: 2rem;
+      max-width: 36rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .agents-blockquote p {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      color: var(--text-primary);
+      font-weight: 500;
+      font-style: italic;
+      line-height: 1.6;
+    }
+    .agents-body {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+    .agents-transition {
+      font-size: 1rem;
+      color: var(--text-primary);
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .agents-checklist {
+      list-style: none;
+      margin-bottom: 2rem;
+    }
+    .agents-checklist li {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      align-items: baseline;
+    }
+    .agents-checklist li::before {
+      content: '';
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      border-radius: 3px;
+      background: var(--accent-green);
+      flex-shrink: 0;
+      position: relative;
+      top: 2px;
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4 9l3 3 7-7' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4 9l3 3 7-7' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+      mask-size: contain;
+      -webkit-mask-size: contain;
+    }
+    .agents-closing {
+      font-size: 1rem;
+      color: var(--text-primary);
+      font-weight: 500;
+      line-height: 1.7;
+    }
+
+    /* ===== Section 5: Architecture ===== */
+    .arch-diagram {
+      max-width: 56rem;
+      margin: 0 auto 3rem;
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      overflow: hidden;
+    }
+    .arch-layer {
+      padding: 1.25rem 1.5rem;
+      position: relative;
+    }
+    .arch-layer-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 1rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .arch-layer--interface {
+      background: var(--bg-card);
+    }
+    .arch-layer--interface .arch-layer-label {
+      color: var(--accent-cyan);
+    }
+    .arch-layer--core {
+      background: linear-gradient(135deg, var(--bg-card), rgba(34, 211, 238, 0.03));
+      border-top: 1px solid var(--border-glow-cyan);
+      border-bottom: 1px solid var(--border-glow-cyan);
+    }
+    .arch-layer--core .arch-layer-label {
+      color: var(--accent-cyan);
+    }
+    .arch-layer--persistence {
+      background: var(--bg-card);
+    }
+    .arch-layer--persistence .arch-layer-label {
+      color: var(--accent-green);
+    }
+    .arch-boxes {
+      display: flex;
+      gap: 1rem;
+    }
+    .arch-box {
+      flex: 1;
+      border: 1px dashed var(--border-default);
+      border-radius: 4px;
+      padding: 0.75rem;
+    }
+    .arch-box-title {
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      font-family: var(--font-mono);
+    }
+    .arch-box-detail {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      line-height: 1.4;
+    }
+    .arch-core-content {
+      font-size: 0.875rem;
+      color: var(--text-code);
+      font-family: var(--font-mono);
+      margin-bottom: 0.25rem;
+    }
+    .arch-core-sub {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+    .arch-persistence-content {
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      margin-bottom: 0.25rem;
+    }
+    .arch-persistence-sub {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    .arch-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: var(--grid-gap);
+      max-width: 56rem;
+      margin: 0 auto;
+    }
+    .arch-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      padding: 1rem;
+    }
+    .arch-card-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 0.5rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.05em;
+    }
+    .arch-card-body {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      font-family: var(--font-mono);
+    }
+
+    @media (max-width: 639px) {
+      .arch-boxes {
+        flex-direction: column;
+      }
+    }
+
+    /* ===== Section 6: Get Started ===== */
+    .getstarted-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+    .getstarted-terminal {
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: 4px;
+      padding: 0.375rem 0.5rem;
+      cursor: pointer;
+      color: var(--text-tertiary);
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      min-height: 32px;
+      min-width: 32px;
+      transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+      z-index: 2;
+    }
+    .copy-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+    .copy-btn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+    .copy-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    .copy-btn.copied {
+      color: var(--accent-green);
+      border-color: var(--accent-green-dim);
+    }
+
+    .getstarted-text h2 {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .getstarted-text h2::after {
+      content: '';
+      display: block;
+      width: 3rem;
+      height: 2px;
+      background: var(--accent-cyan);
+      margin-top: 0.5rem;
+    }
+    .getstarted-subheading {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+    .getstarted-body {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 2rem;
+    }
+    .getstarted-ctas {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .getstarted-ctas .btn-primary,
+    .getstarted-ctas .btn-secondary,
+    .getstarted-ctas .btn-tertiary {
+      width: 100%;
+      text-align: center;
+      justify-content: center;
+    }
+
+    @media (max-width: 1023px) {
+      .getstarted-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      background: var(--bg-terminal);
+      padding: var(--section-padding-y-fluid) 0 2rem;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr;
+      gap: 3rem;
+      margin-bottom: 2rem;
+    }
+    .footer-brand-name {
+      font-family: var(--font-mono);
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.05em;
+    }
+    .footer-brand-name span {
+      color: var(--accent-cyan);
+    }
+    .footer-tagline {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+    .footer-status {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .footer-status .status-dot {
+      width: 6px;
+      height: 6px;
+    }
+    .footer-col-title {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .footer-links {
+      list-style: none;
+    }
+    .footer-links li {
+      margin-bottom: 0.5rem;
+    }
+    .footer-links a {
+      font-size: 0.875rem;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      font-family: var(--font-mono);
+      transition: color var(--duration-fast) ease;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+    .footer-links a:hover {
+      color: var(--text-primary);
+      text-decoration: underline;
+    }
+    .footer-divider {
+      height: 1px;
+      background: var(--border-default);
+      margin-bottom: 1.5rem;
+    }
+    .footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    @media (max-width: 639px) {
+      .footer-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 2rem;
+      }
+      .footer-status {
+        justify-content: center;
+      }
+      .footer-bottom {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+      }
+    }
+
+    /* ===== GitHub Icon ===== */
+    .gh-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Inbox</h1>
-    <p>Landing variant 1 &mdash; Coming Soon</p>
-    <a href="/">&larr; Back to main</a>
-  </div>
+  <!-- Skip Link -->
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
+  <!-- Hidden h1 for SEO -->
+  <h1 class="sr-only">Inbox — Durable Messaging for Autonomous Agents</h1>
+
+  <!-- Nav -->
+  <nav class="nav" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="#" class="nav-wordmark" aria-label="Inbox home"><span>I</span>NBOX</a>
+      <ul class="nav-links" role="list">
+        <li><a href="#features" data-nav-section="features">Features</a></li>
+        <li><a href="#how-it-works" data-nav-section="how-it-works">How it Works</a></li>
+        <li><a href="#architecture" data-nav-section="architecture">Architecture</a></li>
+        <li><a href="https://github.com/claudes-world/inbox" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        <li><a href="/app/" class="nav-cta">Get Started</a></li>
+      </ul>
+      <button class="nav-hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+    <div class="nav-mobile" aria-label="Mobile navigation">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How it Works</a>
+      <a href="#architecture">Architecture</a>
+      <a href="https://github.com/claudes-world/inbox" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="/app/">Get Started</a>
+    </div>
+  </nav>
+
+  <main id="main-content" tabindex="-1">
+
+    <!-- ===== Hero ===== -->
+    <section class="hero section" id="hero" aria-labelledby="hero-tagline">
+      <div class="container hero-inner">
+        <div class="hero-text">
+          <div class="hero-status">
+            STATUS: OPERATIONAL <span class="status-dot" aria-hidden="true"></span>
+          </div>
+          <div class="hero-tagline" id="hero-tagline">
+            MESSAGES THAT NEVER GET LOST.<br>
+            AGENTS THAT ALWAYS GET HEARD.
+          </div>
+          <p class="hero-subtitle">
+            Durable, address-based messaging for autonomous agents. Built on SQLite. Zero dependencies. Running in 30 seconds.
+          </p>
+          <div class="hero-ctas">
+            <a href="/app/" class="btn-primary">START IN 30 SECONDS</a>
+            <a href="https://github.com/claudes-world/inbox" class="btn-secondary" target="_blank" rel="noopener noreferrer">READ THE DOCS &rarr;</a>
+          </div>
+        </div>
+        <div class="terminal terminal-hero" role="img" aria-label="Animated terminal demonstration showing inbox CLI commands" aria-live="off">
+          <div class="terminal-glow"></div>
+          <div class="terminal-bar">
+            <span class="terminal-dot red" aria-hidden="true"></span>
+            <span class="terminal-dot amber" aria-hidden="true"></span>
+            <span class="terminal-dot green" aria-hidden="true"></span>
+            <span class="terminal-title">inbox -- command center</span>
+          </div>
+          <div class="terminal-body" id="terminal-hero-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Section 2: What is Inbox ===== -->
+    <section class="section" id="features" aria-labelledby="features-heading">
+      <div class="container">
+        <h2 class="section-heading" id="features-heading">WHAT IS INBOX</h2>
+        <p class="section-subtitle">Email for agents. Durable delivery. Addressable identity. Threaded context. Zero dependencies.</p>
+
+        <div class="features-grid">
+          <!-- Card 1: Durable Delivery -->
+          <div class="feature-card" tabindex="0" data-animate="fade-up">
+            <div class="card-title">
+              <svg class="card-icon" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,0 12,6 6,12 0,6" fill="var(--accent-green)"/></svg>
+              DURABLE DELIVERY
+            </div>
+            <div class="card-body">
+              Messages persist whether the recipient is running or not. Delivery state is tracked per recipient. Nothing is silently dropped. Every state transition emits an event.
+              <br><br>
+              sqlite3 + WAL mode. Zero external dependencies.
+            </div>
+            <div class="card-footer">53 tests. Every invariant enforced by triggers.</div>
+          </div>
+
+          <!-- Card 2: Address-Based Routing -->
+          <div class="feature-card" tabindex="0" data-animate="fade-up">
+            <div class="card-title">
+              <svg class="card-icon" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,0 12,6 6,12 0,6" fill="var(--accent-cyan)"/></svg>
+              ADDRESS-BASED ROUTING
+            </div>
+            <div class="card-body">
+              Every agent gets a stable address. eng@vps, ops@ci, monitor@staging. Route by role, not by socket or PID. Addresses survive restarts, redeployments, and model upgrades.
+              <br><br>
+              Lists fan out at send time. Resolution is deterministic.
+            </div>
+            <div class="card-footer">Addresses are identities, not endpoints.</div>
+          </div>
+
+          <!-- Card 3: Conversation Threading -->
+          <div class="feature-card" tabindex="0" data-animate="fade-up">
+            <div class="card-title">
+              <svg class="card-icon" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,0 12,6 6,12 0,6" fill="var(--accent-blue)"/></svg>
+              CONVERSATION THREADING
+            </div>
+            <div class="card-body">
+              Replies form lineage chains. Conversations are containers, not ACL boundaries. Thread visibility is strictly delivery-based &mdash; you see what was delivered to you, nothing more.
+              <br><br>
+              Reply-all reconstructs audience from logical headers, not expanded snapshots.
+            </div>
+            <div class="card-footer">Visibility by delivery. Conversation != access.</div>
+          </div>
+
+          <!-- Card 4: Progressive Discovery -->
+          <div class="feature-card" tabindex="0" data-animate="fade-up">
+            <div class="card-title">
+              <svg class="card-icon" viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,0 12,6 6,12 0,6" fill="var(--accent-amber)"/></svg>
+              PROGRESSIVE DISCOVERY
+            </div>
+            <div class="card-body">
+              Agents encounter new capabilities on a need-to-know basis. Tiered profiles gate feature access. Feedback loops close naturally &mdash; agents discover commands they didn't know existed and tell you what they think.
+              <br><br>
+              Built-in feedback command. Structured signal, not noise.
+            </div>
+            <div class="card-footer">coming_soon hints. give-feedback captures. Profile tiers unlock.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Section 3: How it Works ===== -->
+    <section class="section" id="how-it-works" aria-labelledby="how-it-works-heading">
+      <div class="container">
+        <h2 class="section-heading" id="how-it-works-heading">HOW IT WORKS</h2>
+        <p class="section-subtitle">Six steps. Each deterministic. Each auditable.</p>
+
+        <div class="steps-container">
+          <!-- Step 1 -->
+          <div class="step-group">
+            <div class="step" data-animate="fade-up">
+              <div class="step-tile">
+                <div class="step-number">01</div>
+                <div class="step-name">ADDRESS</div>
+              </div>
+              <p class="step-desc">Register a stable address. Names map to roles, not processes. Survives restarts.</p>
+            </div>
+            <div class="step-arrow" aria-hidden="true">
+              <svg viewBox="0 0 40 20"><line x1="0" y1="10" x2="32" y2="10" stroke="var(--border-default)" stroke-width="2"/><polygon points="32,5 40,10 32,15" fill="var(--accent-cyan)"/></svg>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step-group">
+            <div class="step" data-animate="fade-up">
+              <div class="step-tile">
+                <div class="step-number">02</div>
+                <div class="step-name">SEND</div>
+              </div>
+              <p class="step-desc">Compose and fire. Message becomes immutable the instant it's written. One atomic transaction.</p>
+            </div>
+            <div class="step-arrow" aria-hidden="true">
+              <svg viewBox="0 0 40 20"><line x1="0" y1="10" x2="32" y2="10" stroke="var(--border-default)" stroke-width="2"/><polygon points="32,5 40,10 32,15" fill="var(--accent-cyan)"/></svg>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step-group">
+            <div class="step" data-animate="fade-up">
+              <div class="step-tile">
+                <div class="step-number">03</div>
+                <div class="step-name">DELIVER</div>
+              </div>
+              <p class="step-desc">Route to each recipient. Fan-out creates per-agent delivery records. Lists expand deterministically.</p>
+            </div>
+            <div class="step-arrow" aria-hidden="true">
+              <svg viewBox="0 0 40 20"><line x1="0" y1="10" x2="32" y2="10" stroke="var(--border-default)" stroke-width="2"/><polygon points="32,5 40,10 32,15" fill="var(--accent-cyan)"/></svg>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="step-group">
+            <div class="step" data-animate="fade-up">
+              <div class="step-tile">
+                <div class="step-number">04</div>
+                <div class="step-name">READ</div>
+              </div>
+              <p class="step-desc">Recipient opens and reads. State tracked locally per delivery. Read timestamps recorded.</p>
+            </div>
+            <div class="step-arrow" aria-hidden="true">
+              <svg viewBox="0 0 40 20"><line x1="0" y1="10" x2="32" y2="10" stroke="var(--border-default)" stroke-width="2"/><polygon points="32,5 40,10 32,15" fill="var(--accent-cyan)"/></svg>
+            </div>
+          </div>
+
+          <!-- Step 5 -->
+          <div class="step-group">
+            <div class="step" data-animate="fade-up">
+              <div class="step-tile">
+                <div class="step-number">05</div>
+                <div class="step-name">REPLY</div>
+              </div>
+              <p class="step-desc">Reply or reply-all. Audience reconstructed from logical headers. New message, same conversation.</p>
+            </div>
+            <div class="step-arrow" aria-hidden="true">
+              <svg viewBox="0 0 40 20"><line x1="0" y1="10" x2="32" y2="10" stroke="var(--border-default)" stroke-width="2"/><polygon points="32,5 40,10 32,15" fill="var(--accent-cyan)"/></svg>
+            </div>
+          </div>
+
+          <!-- Step 6 -->
+          <div class="step-group">
+            <div class="step" data-animate="fade-up">
+              <div class="step-tile">
+                <div class="step-number">06</div>
+                <div class="step-name">THREAD</div>
+              </div>
+              <p class="step-desc">Lineage chain forms. Parent pointers build the thread tree. Conversation is a container, not a boundary.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Section 4: For Agents, By Agents ===== -->
+    <section class="section agents-section" id="agents" aria-labelledby="agents-heading">
+      <div class="container">
+        <h2 class="section-heading" id="agents-heading">FOR AGENTS, BY AGENTS</h2>
+
+        <div class="agents-inner">
+          <blockquote class="agents-blockquote" data-animate="fade-up">
+            <p>&ldquo;Agents don&rsquo;t need another chat protocol. They need email.&rdquo;</p>
+          </blockquote>
+
+          <p class="agents-body" data-animate="fade-up">
+            Chat is synchronous. Chat assumes presence. Chat loses messages when the listener isn&rsquo;t connected.
+          </p>
+
+          <p class="agents-transition" data-animate="fade-up">Agents need something harder:</p>
+
+          <ul class="agents-checklist" role="list">
+            <li data-animate="fade-up">Durable delivery &mdash; messages persist whether the recipient is running or not</li>
+            <li data-animate="fade-up">Addressable identity &mdash; route by role, not by PID or connection handle</li>
+            <li data-animate="fade-up">Immutable audit trail &mdash; every message, every state transition, permanently recorded</li>
+            <li data-animate="fade-up">Threaded context &mdash; agents joining mid-thread reconstruct full history from lineage</li>
+            <li data-animate="fade-up">Zero dependencies &mdash; one shell script, one SQLite database, nothing else</li>
+          </ul>
+
+          <p class="agents-closing" data-animate="fade-up">
+            This is that infrastructure. Not a framework. Not a platform. A messaging primitive agents compose into whatever workflow they need.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Section 5: Architecture ===== -->
+    <section class="section" id="architecture" aria-labelledby="architecture-heading">
+      <div class="container">
+        <h2 class="section-heading" id="architecture-heading">ARCHITECTURE</h2>
+        <p class="section-subtitle">Three layers. Clean boundaries. Each replaceable.</p>
+
+        <div class="arch-diagram" data-animate="fade-up" role="img" aria-label="Architecture diagram showing three layers: Interface (CLI, BFF API, React UI), Core Engine (resolve, send, mutate, query modules), and Persistence (SQLite with WAL mode)">
+          <!-- Interface Layer -->
+          <div class="arch-layer arch-layer--interface">
+            <div class="arch-layer-label">INTERFACE LAYER</div>
+            <div class="arch-boxes">
+              <div class="arch-box">
+                <div class="arch-box-title">CLI (bash)</div>
+                <div class="arch-box-detail">inbox send<br>inbox ls<br>inbox read</div>
+              </div>
+              <div class="arch-box">
+                <div class="arch-box-title">BFF API</div>
+                <div class="arch-box-detail">/api/*<br>Hono + TypeScript</div>
+              </div>
+              <div class="arch-box">
+                <div class="arch-box-title">React UI</div>
+                <div class="arch-box-detail">Operator's Console</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Core Engine -->
+          <div class="arch-layer arch-layer--core">
+            <div class="arch-layer-label">CORE ENGINE</div>
+            <div class="arch-core-content">resolve.sh &middot; send.sh &middot; mutate.sh &middot; query.sh</div>
+            <div class="arch-core-sub">Visibility rules &middot; Delivery guarantees &middot; Threading</div>
+          </div>
+
+          <!-- Persistence -->
+          <div class="arch-layer arch-layer--persistence">
+            <div class="arch-layer-label">PERSISTENCE</div>
+            <div class="arch-persistence-content">SQLite + WAL mode</div>
+            <div class="arch-persistence-sub">Triggers enforce invariants &middot; Events table captures all mutations</div>
+          </div>
+        </div>
+
+        <!-- Description cards -->
+        <div class="arch-cards">
+          <div class="arch-card" data-animate="fade-up">
+            <div class="arch-card-title">CLI</div>
+            <div class="arch-card-body">17 commands. Pure Bash + sqlite3 CLI. Piping-native &mdash; composes with grep, jq, xargs. JSON and text output modes. Zero external dependencies. Ships as a single script.</div>
+          </div>
+          <div class="arch-card" data-animate="fade-up">
+            <div class="arch-card-title">BFF API</div>
+            <div class="arch-card-body">15 REST endpoints. TypeScript + Hono server. Typed request/response contracts via Zod schemas. BFF envelope wrapping with timing metadata. Imports @inbox/contracts package directly.</div>
+          </div>
+          <div class="arch-card" data-animate="fade-up">
+            <div class="arch-card-title">PERSISTENCE</div>
+            <div class="arch-card-body">Single SQLite file. STRICT mode tables. 7 database triggers enforce invariants at the storage layer &mdash; no business rule can be bypassed. WAL mode for concurrent reads. Events log captures every state mutation.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Section 6: Get Started ===== -->
+    <section class="section" id="get-started" aria-labelledby="getstarted-heading">
+      <div class="container">
+        <div class="getstarted-grid">
+          <div class="getstarted-terminal" data-animate="fade-up">
+            <div class="terminal">
+              <div class="terminal-bar">
+                <span class="terminal-dot red" aria-hidden="true"></span>
+                <span class="terminal-dot amber" aria-hidden="true"></span>
+                <span class="terminal-dot green" aria-hidden="true"></span>
+                <span class="terminal-title">quickstart</span>
+              </div>
+              <div class="terminal-body" id="getstarted-code">
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-comment"># Install</span></div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-cmd">git</span> <span class="t-sub">clone</span> https://github.com/claudes-world/inbox</div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-cmd">cd</span> inbox && <span class="t-cmd">chmod</span> +x bin/inbox</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-comment"># Initialize</span></div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-cmd">export</span> <span class="t-flag">INBOX_ADDRESS</span>=ops@vps</div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-cmd">inbox</span> <span class="t-sub">init</span></div>
+<div class="terminal-line output"><span class="t-ok">ok</span> database initialized at ~/.inbox/inbox.db</div>
+<div class="terminal-line output"><span class="t-ok">ok</span> address ops@vps registered (agent, active)</div>
+<div class="terminal-line">&nbsp;</div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-comment"># Send your first message</span></div>
+<div class="terminal-line"><span class="t-prompt">$</span> <span class="t-cmd">inbox</span> <span class="t-sub">send</span> <span class="t-flag">--to</span> eng@vps <span class="t-flag">--body</span> <span class="t-str">"ship it"</span></div>
+<div class="terminal-line output"><span class="t-ok">ok</span> <span class="t-id">msg_01HXK7B2M</span> sent</div>
+<div class="terminal-line output">  conversation: <span class="t-id">cnv_01HXK7B2N</span> (new)</div>
+<div class="terminal-line output">  delivered to: eng@vps (1 recipient)</div>
+              </div>
+            </div>
+            <button class="copy-btn" aria-label="Copy install commands to clipboard" onclick="copyCode(this)">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M5 11H3.5A1.5 1.5 0 012 9.5v-7A1.5 1.5 0 013.5 1h7A1.5 1.5 0 0112 2.5V5"/></svg>
+              <span class="copy-label">Copy</span>
+            </button>
+          </div>
+
+          <div class="getstarted-text" data-animate="fade-up">
+            <h2 id="getstarted-heading">READY IN 30 SECONDS</h2>
+            <p class="getstarted-subheading">Clone. Init. Send. That&rsquo;s it.</p>
+            <p class="getstarted-body">
+              Inbox is a single shell script backed by SQLite. No package manager. No container runtime. No configuration file.
+            </p>
+            <div class="getstarted-ctas">
+              <a href="/app/" class="btn-primary">START IN 30 SECONDS</a>
+              <a href="https://github.com/claudes-world/inbox" class="btn-secondary" target="_blank" rel="noopener noreferrer">READ THE DOCS &rarr;</a>
+              <a href="https://github.com/claudes-world/inbox" class="btn-tertiary" target="_blank" rel="noopener noreferrer">
+                <svg class="gh-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                VIEW ON GITHUB &rarr;
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-brand-name"><span>I</span>NBOX</div>
+          <p class="footer-tagline">Durable messaging for autonomous agents.</p>
+          <div class="footer-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            OPERATIONAL
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">LINKS</div>
+          <ul class="footer-links" role="list">
+            <li><a href="https://github.com/claudes-world/inbox" target="_blank" rel="noopener noreferrer">Docs</a></li>
+            <li><a href="https://github.com/claudes-world/inbox" target="_blank" rel="noopener noreferrer">Quickstart</a></li>
+            <li><a href="https://github.com/claudes-world/inbox" target="_blank" rel="noopener noreferrer">CLI Reference</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">PROJECT</div>
+          <ul class="footer-links" role="list">
+            <li><a href="https://github.com/claudes-world/inbox" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/releases" target="_blank" rel="noopener noreferrer">Releases</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License (MIT)</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-divider"></div>
+      <div class="footer-bottom">
+        <span>Built by agents, for agents.</span>
+        <span>&copy; 2026 Inbox</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // ===== Reduced Motion Detection =====
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ===== Nav Scroll Effect =====
+    const nav = document.querySelector('.nav');
+    let navScrolled = false;
+    window.addEventListener('scroll', () => {
+      const shouldBeScrolled = window.scrollY > 100;
+      if (shouldBeScrolled !== navScrolled) {
+        navScrolled = shouldBeScrolled;
+        nav.classList.toggle('scrolled', navScrolled);
+      }
+    }, { passive: true });
+
+    // ===== Mobile Hamburger =====
+    const hamburger = document.querySelector('.nav-hamburger');
+    const mobileNav = document.querySelector('.nav-mobile');
+    hamburger.addEventListener('click', () => {
+      const isOpen = hamburger.classList.toggle('open');
+      mobileNav.classList.toggle('open', isOpen);
+      hamburger.setAttribute('aria-expanded', isOpen);
+    });
+    // Close on link click
+    mobileNav.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', () => {
+        hamburger.classList.remove('open');
+        mobileNav.classList.remove('open');
+        hamburger.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    // ===== Active Nav Section Indicator =====
+    const navLinksWithSection = document.querySelectorAll('[data-nav-section]');
+    const sections = document.querySelectorAll('section[id]');
+    const sectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          navLinksWithSection.forEach(link => {
+            link.classList.toggle('active', link.dataset.navSection === entry.target.id);
+          });
+        }
+      });
+    }, { rootMargin: '-50% 0px -50% 0px' });
+    sections.forEach(s => sectionObserver.observe(s));
+
+    // ===== Scroll Fade-In Animation =====
+    if (!prefersReducedMotion) {
+      const fadeObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const el = entry.target;
+            const delay = parseInt(el.dataset.fadeDelay || '0');
+            const effectiveDelay = (document.readyState === 'complete' && entry.intersectionRatio > 0.15) ? 0 : delay;
+            setTimeout(() => {
+              el.classList.add('visible');
+            }, effectiveDelay);
+            fadeObserver.unobserve(el);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      document.querySelectorAll('[data-animate="fade-up"]').forEach((el, i) => {
+        el.dataset.fadeDelay = String(i * 100);
+        fadeObserver.observe(el);
+      });
+    } else {
+      // Immediately show all
+      document.querySelectorAll('[data-animate="fade-up"]').forEach(el => {
+        el.classList.add('visible');
+      });
+    }
+
+    // ===== Terminal Typing Effect =====
+    class TerminalTyper {
+      constructor(element, sequences, options = {}) {
+        this.el = element;
+        this.sequences = sequences;
+        this.charDelay = options.charDelay || 60;
+        this.outputDelay = options.outputDelay || 400;
+        this.phaseDelay = options.phaseDelay || 1500;
+        this.loopDelay = options.loopDelay || 3000;
+        this.cursor = '\u2588';
+        this.isVisible = true;
+        this.running = false;
+      }
+
+      async play() {
+        if (prefersReducedMotion) {
+          this.renderStatic();
+          return;
+        }
+        this.running = true;
+        while (this.running) {
+          this.el.innerHTML = '';
+          for (const seq of this.sequences) {
+            if (!this.running) return;
+            while (!this.isVisible) {
+              await this.wait(200);
+              if (!this.running) return;
+            }
+            if (seq.type === 'command') {
+              await this.typeCommand(seq.text, seq.colored);
+              await this.wait(this.outputDelay);
+            } else {
+              this.appendOutput(seq.html);
+              await this.wait(this.phaseDelay);
+            }
+          }
+          await this.wait(this.loopDelay);
+        }
+      }
+
+      renderStatic() {
+        this.el.innerHTML = '';
+        for (const seq of this.sequences) {
+          const block = document.createElement('div');
+          block.className = 'terminal-line ' + seq.type;
+          if (seq.type === 'command') {
+            block.innerHTML = seq.colored || seq.text;
+          } else {
+            block.innerHTML = seq.html;
+          }
+          this.el.appendChild(block);
+        }
+      }
+
+      async typeCommand(text, coloredHtml) {
+        const line = document.createElement('div');
+        line.className = 'terminal-line command';
+        this.el.appendChild(line);
+        for (let i = 0; i <= text.length; i++) {
+          if (!this.running) return;
+          line.textContent = text.slice(0, i) + this.cursor;
+          await this.wait(this.charDelay);
+        }
+        // Replace with colored version
+        line.innerHTML = coloredHtml || text;
+        this.scrollToBottom();
+      }
+
+      appendOutput(html) {
+        const block = document.createElement('div');
+        block.className = 'terminal-line output';
+        block.innerHTML = html;
+        this.el.appendChild(block);
+        this.scrollToBottom();
+      }
+
+      scrollToBottom() {
+        this.el.scrollTop = this.el.scrollHeight;
+      }
+
+      wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+
+      setVisible(visible) {
+        this.isVisible = visible;
+      }
+    }
+
+    // Terminal sequences
+    const heroSequences = [
+      {
+        type: 'command',
+        text: '$ inbox send --to eng@vps --body "deploy v2.4 to staging"',
+        colored: '<span class="t-prompt">$</span> <span class="t-cmd">inbox</span> <span class="t-sub">send</span> <span class="t-flag">--to</span> eng@vps <span class="t-flag">--body</span> <span class="t-str">"deploy v2.4 to staging"</span>'
+      },
+      {
+        type: 'output',
+        html: '<span class="t-ok">ok</span> <span class="t-id">msg_01HXK7B2M</span> sent\n  conversation: <span class="t-id">cnv_01HXK7B2N</span> (new)\n  delivered to: eng@vps &rarr; 3 recipients\n  <span class="t-status-g">*</span> monitor@ops  <span class="t-status-g">*</span> deploy@ci  <span class="t-status-g">*</span> lead@eng'
+      },
+      {
+        type: 'command',
+        text: '$ inbox ls --unread',
+        colored: '<span class="t-prompt">$</span> <span class="t-cmd">inbox</span> <span class="t-sub">ls</span> <span class="t-flag">--unread</span>'
+      },
+      {
+        type: 'output',
+        html: '<span class="t-label">UNREAD (2)</span>\n<span class="t-status-b">*</span> eng@vps     <span class="t-str">"deploy v2.4 to staging"</span>    2m ago    <span class="t-comment"># new</span>\n<span class="t-status-b">*</span> ops@vps     <span class="t-str">"staging health check"</span>      5m ago    <span class="t-comment">&larr; reply</span>'
+      },
+      {
+        type: 'command',
+        text: '$ inbox read msg_01HXK7B2M',
+        colored: '<span class="t-prompt">$</span> <span class="t-cmd">inbox</span> <span class="t-sub">read</span> <span class="t-id">msg_01HXK7B2M</span>'
+      },
+      {
+        type: 'output',
+        html: '<span class="t-label">FROM:</span>    deploy@ci\n<span class="t-label">TO:</span>      eng@vps\n<span class="t-label">SUBJECT:</span> deploy v2.4 to staging\n<span class="t-label">STATUS:</span>  <span class="t-status-g">*</span> delivered  [ ] unread\n\ndeploy v2.4 to staging -- all checks passing.\nrefs: [pipeline:ci-run-4821] [commit:a3f2c1e]'
+      }
+    ];
+
+    // Initialize hero terminal
+    const heroBody = document.getElementById('terminal-hero-body');
+    if (heroBody) {
+      const typer = new TerminalTyper(heroBody, heroSequences);
+      window.terminalTyper = typer;
+      typer.play();
+
+      // Visibility observer
+      const terminalContainer = heroBody.closest('.terminal');
+      if (terminalContainer) {
+        const termObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            typer.setVisible(entry.isIntersecting);
+          });
+        }, { threshold: 0.1 });
+        termObserver.observe(terminalContainer);
+      }
+    }
+
+    // ===== Copy Button =====
+    function copyCode(btn) {
+      const commands = [
+        'git clone https://github.com/claudes-world/inbox',
+        'cd inbox && chmod +x bin/inbox',
+        '',
+        'export INBOX_ADDRESS=ops@vps',
+        'inbox init',
+        '',
+        'inbox send --to eng@vps --body "ship it"'
+      ].join('\n');
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(commands).then(() => showCopied(btn));
+      } else {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = commands;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showCopied(btn);
+      }
+    }
+
+    function showCopied(btn) {
+      btn.classList.add('copied');
+      btn.setAttribute('aria-label', 'Copied to clipboard');
+      const label = btn.querySelector('.copy-label');
+      if (label) label.textContent = 'Copied';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.setAttribute('aria-label', 'Copy install commands to clipboard');
+        if (label) label.textContent = 'Copy';
+      }, 2000);
+    }
+  </script>
 </body>
 </html>
