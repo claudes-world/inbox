@@ -17,6 +17,11 @@ import { ThreadTreeScreen } from "./screens/ThreadTreeScreen.js";
 import { EventInspectorScreen } from "./screens/EventInspectorScreen.js";
 import { VisibilityMatrixScreen } from "./screens/VisibilityMatrixScreen.js";
 import { GraphScreen } from "./screens/GraphScreen.js";
+import { ReplayScreen } from "./screens/ReplayScreen.js";
+import { IncidentReviewScreen } from "./screens/IncidentReviewScreen.js";
+import { ExperimentsScreen } from "./screens/ExperimentsScreen.js";
+import { FeedbackBoardScreen } from "./screens/FeedbackBoardScreen.js";
+import { WorkflowDashboardScreen } from "./screens/WorkflowDashboardScreen.js";
 
 function NavLink({
   hash,
@@ -174,6 +179,28 @@ export function App() {
       );
     }
 
+    if (path === "/replay") {
+      return <ReplayScreen address={address} />;
+    }
+
+    if (path === "/incidents") {
+      return (
+        <IncidentReviewScreen address={address} navigate={navigate} />
+      );
+    }
+
+    if (path === "/experiments") {
+      return <ExperimentsScreen />;
+    }
+
+    if (path === "/feedback") {
+      return <FeedbackBoardScreen />;
+    }
+
+    if (path === "/workflows") {
+      return <WorkflowDashboardScreen address={address} />;
+    }
+
     // Default: Inbox
     return <InboxScreen address={address} navigate={navigate} />;
   };
@@ -253,6 +280,40 @@ export function App() {
               hash="/graph"
               currentHash={path}
               label="Graph"
+              navigate={navigate}
+            />
+            <span className="mx-1 h-4 w-px bg-zinc-700" aria-hidden="true" />
+            <span className="text-[0.65rem] uppercase text-zinc-600 tracking-wider px-1">
+              Viz
+            </span>
+            <NavLink
+              hash="/workflows"
+              currentHash={path}
+              label="Workflows"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/replay"
+              currentHash={path}
+              label="Replay"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/incidents"
+              currentHash={path}
+              label="Incidents"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/experiments"
+              currentHash={path}
+              label="Experiments"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/feedback"
+              currentHash={path}
+              label="Feedback"
               navigate={navigate}
             />
           </nav>
