@@ -6,5 +6,6 @@ tmp/
 *.ndjson
 node_modules/
 dist/
+*.tsbuildinfo
 .claude/
 package-lock.json
