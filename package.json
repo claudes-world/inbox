@@ -1,5 +1,12 @@
 {
   "name": "tryinbox",
   "private": true,
-  "workspaces": ["packages/*"]
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:bff": "pnpm --filter @inbox/bff dev",
+    "dev:ui": "pnpm --filter @inbox/ui dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
 }
