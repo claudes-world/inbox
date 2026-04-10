@@ -10,6 +10,9 @@ import { ThreadScreen } from "./screens/ThreadScreen.js";
 import { SentScreen } from "./screens/SentScreen.js";
 import { SentReadScreen } from "./screens/SentReadScreen.js";
 import { DirectoryScreen } from "./screens/DirectoryScreen.js";
+import { HealthScreen } from "./screens/HealthScreen.js";
+import { ConfigScreen } from "./screens/ConfigScreen.js";
+import { SearchScreen } from "./screens/SearchScreen.js";
 
 function NavLink({
   hash,
@@ -126,6 +129,18 @@ export function App() {
       );
     }
 
+    if (path === "/health") {
+      return <HealthScreen address={address} navigate={navigate} />;
+    }
+
+    if (path === "/config") {
+      return <ConfigScreen address={address} navigate={navigate} />;
+    }
+
+    if (path === "/search") {
+      return <SearchScreen address={address} navigate={navigate} />;
+    }
+
     // Default: Inbox
     return <InboxScreen address={address} navigate={navigate} />;
   };
@@ -167,6 +182,25 @@ export function App() {
               hash="/directory"
               currentHash={path}
               label="Directory"
+              navigate={navigate}
+            />
+            <span className="text-zinc-700 mx-0.5">|</span>
+            <NavLink
+              hash="/search"
+              currentHash={path}
+              label="Search"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/health"
+              currentHash={path}
+              label="Health"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/config"
+              currentHash={path}
+              label="Config"
               navigate={navigate}
             />
           </nav>
