@@ -1,18 +1,186 @@
 #!/usr/bin/env bash
-# lib/query.sh — Query logic: list inbox, read message, thread view, directory lookups.
+# lib/query.sh — Query logic: list inbox, read message, sent view, thread view, directory lookups.
 
-query_list() {
-  echo "not implemented" >&2; return 1
+# query_sent_list — List messages sent by actor with sent_items.
+# Args: actor_addr_id, visibility (active|hidden|any), since_ms, until_ms, limit
+# Output: JSON result
+query_sent_list() {
+  local actor_addr_id="$1"
+  local visibility="${2:-active}"
+  local since_ms="${3:-}"
+  local until_ms="${4:-}"
+  local limit="${5:-50}"
+
+  # Clamp limit
+  [[ "$limit" -gt 200 ]] && limit=200
+
+  local where_clauses="m.sender_address_id = '$actor_addr_id'"
+
+  case "$visibility" in
+    active) where_clauses="$where_clauses AND si.visibility_state = 'active'" ;;
+    hidden) where_clauses="$where_clauses AND si.visibility_state = 'hidden'" ;;
+    any) ;; # no filter
+    *) error_json "invalid_argument" "invalid visibility filter: $visibility"; return "$EXIT_INVALID_ARGUMENT" ;;
+  esac
+
+  if [[ -n "$since_ms" ]]; then
+    where_clauses="$where_clauses AND m.created_at_ms >= $since_ms"
+  fi
+  if [[ -n "$until_ms" ]]; then
+    where_clauses="$where_clauses AND m.created_at_ms < $until_ms"
+  fi
+
+  local rows
+  rows=$(db_query "SELECT m.id, m.conversation_id, m.subject, m.created_at_ms,
+      si.visibility_state
+    FROM messages m
+    JOIN sent_items si ON si.message_id = m.id
+    WHERE $where_clauses
+    ORDER BY m.created_at_ms DESC, m.id DESC
+    LIMIT $limit;")
+
+  local items="["
+  local first=1
+  local count=0
+
+  while IFS= read -r row; do
+    [[ -z "$row" ]] && continue
+    count=$((count + 1))
+
+    local m_id m_cnv m_subj m_ts s_vis
+    IFS='|' read -r m_id m_cnv m_subj m_ts s_vis <<< "$row"
+
+    local safe_subj="${m_subj//\\/\\\\}"
+    safe_subj="${safe_subj//\"/\\\"}"
+
+    local item="{\"message_id\":\"$m_id\",\"conversation_id\":\"$m_cnv\",\"subject\":\"$safe_subj\",\"created_at_ms\":$m_ts,\"view_kind\":\"sent\",\"visibility_state\":\"$s_vis\"}"
+
+    if [[ $first -eq 1 ]]; then
+      items+="$item"
+      first=0
+    else
+      items+=",$item"
+    fi
+  done <<< "$rows"
+
+  items+="]"
+
+  success_json "\"items\":$items,\"limit\":$limit,\"returned_count\":$count"
 }
 
-query_read() {
-  echo "not implemented" >&2; return 1
-}
+# query_sent_read — Read a specific sent message.
+# Args: msg_id, actor_addr_id
+# Output: JSON result with message content and sent_item state
+# Hidden sent items are still directly readable by ID.
+query_sent_read() {
+  local msg_id="$1"
+  local actor_addr_id="$2"
 
-query_thread() {
-  echo "not implemented" >&2; return 1
-}
+  # Resolve sent item
+  local sent_row
+  sent_row=$(resolve_sent "$msg_id" "$actor_addr_id") || return $?
 
-query_directory() {
-  echo "not implemented" >&2; return 1
+  local s_vis
+  s_vis=$(echo "$sent_row" | cut -d'|' -f2)
+
+  # Get message details
+  local msg_row
+  msg_row=$(db_query "SELECT id, conversation_id, parent_message_id, sender_address_id,
+      subject, body, sender_urgency, created_at_ms
+    FROM messages WHERE id = '$msg_id';")
+
+  if [[ -z "$msg_row" ]]; then
+    error_json "not_found" "message not found" "message_id"
+    return "$EXIT_NOT_FOUND"
+  fi
+
+  local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
+  IFS='|' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+
+  local sender_str
+  sender_str=$(lookup_address_id_to_string "$m_sender_id")
+
+  # Get public recipients
+  local pub_to_json="["
+  local pub_cc_json="["
+  local first_to=1 first_cc=1
+
+  local pub_rows
+  pub_rows=$(db_query "SELECT recipient_address_id, recipient_role
+    FROM message_public_recipients
+    WHERE message_id = '$msg_id'
+    ORDER BY recipient_role, ordinal;")
+
+  while IFS= read -r pr; do
+    [[ -z "$pr" ]] && continue
+    local pr_addr_id pr_role
+    IFS='|' read -r pr_addr_id pr_role <<< "$pr"
+    local pr_str
+    pr_str=$(lookup_address_id_to_string "$pr_addr_id")
+    if [[ "$pr_role" == "to" ]]; then
+      if [[ $first_to -eq 1 ]]; then
+        pub_to_json+="\"$pr_str\""
+        first_to=0
+      else
+        pub_to_json+=",\"$pr_str\""
+      fi
+    elif [[ "$pr_role" == "cc" ]]; then
+      if [[ $first_cc -eq 1 ]]; then
+        pub_cc_json+="\"$pr_str\""
+        first_cc=0
+      else
+        pub_cc_json+=",\"$pr_str\""
+      fi
+    fi
+  done <<< "$pub_rows"
+
+  pub_to_json+="]"
+  pub_cc_json+="]"
+
+  # Get references
+  local refs_json="["
+  local first_ref=1
+  local ref_rows
+  ref_rows=$(db_query "SELECT ref_kind, ref_value, label, mime_type, metadata_json
+    FROM message_references WHERE message_id = '$msg_id' ORDER BY ordinal;")
+
+  while IFS= read -r rr; do
+    [[ -z "$rr" ]] && continue
+    local r_kind r_value r_label r_mime r_meta
+    IFS='|' read -r r_kind r_value r_label r_mime r_meta <<< "$rr"
+
+    local safe_r_value="${r_value//\\/\\\\}"
+    safe_r_value="${safe_r_value//\"/\\\"}"
+
+    local ref_item="{\"kind\":\"$r_kind\",\"value\":\"$safe_r_value\""
+    if [[ -n "$r_label" ]]; then
+      local safe_r_label="${r_label//\\/\\\\}"
+      safe_r_label="${safe_r_label//\"/\\\"}"
+      ref_item+=",\"label\":\"$safe_r_label\""
+    else
+      ref_item+=",\"label\":null"
+    fi
+    ref_item+=",\"mime_type\":${r_mime:+\"$r_mime\"}${r_mime:-null}"
+    ref_item+=",\"metadata\":${r_meta:-null}}"
+
+    if [[ $first_ref -eq 1 ]]; then
+      refs_json+="$ref_item"
+      first_ref=0
+    else
+      refs_json+=",$ref_item"
+    fi
+  done <<< "$ref_rows"
+
+  refs_json+="]"
+
+  # Escape message fields for JSON
+  local safe_subj="${m_subj//\\/\\\\}"
+  safe_subj="${safe_subj//\"/\\\"}"
+  local safe_body="${m_body//\\/\\\\}"
+  safe_body="${safe_body//\"/\\\"}"
+
+  local parent_json="null"
+  [[ -n "$m_parent" ]] && parent_json="\"$m_parent\""
+
+  success_json "\"message\":{\"message_id\":\"$m_id\",\"conversation_id\":\"$m_cnv\",\"parent_message_id\":$parent_json,\"sender\":\"$sender_str\",\"subject\":\"$safe_subj\",\"body\":\"$safe_body\",\"public_to\":$pub_to_json,\"public_cc\":$pub_cc_json,\"references\":$refs_json},\"state\":{\"view_kind\":\"sent\",\"visibility_state\":\"$s_vis\"}"
 }
