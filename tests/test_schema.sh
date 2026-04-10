@@ -211,6 +211,75 @@ test_sch07_state_changed_needs_actor() {
   assert_contains "$output" "CHECK constraint failed" "SCH-07: CHECK constraint"
 }
 
+# --- V05: BCC recipient absent from public headers ---
+test_v05_bcc_privacy_public_headers() {
+  _schema_fixtures || return 1
+
+  # Setup: conversation + message from agent1
+  db_exec "INSERT INTO conversations (id, created_at_ms) VALUES ('cnv_v05', 2000);" || return 1
+  db_exec "
+    INSERT INTO messages (id, conversation_id, sender_address_id, body, created_at_ms)
+    VALUES ('msg_v05', 'cnv_v05', 'addr_agent1', 'hello', 3000);
+  " || return 1
+
+  # Public header: agent2 as 'to'
+  db_exec "
+    INSERT INTO message_public_recipients (id, message_id, recipient_address_id, recipient_role, ordinal, created_at_ms)
+    VALUES ('mpr_v05_1', 'msg_v05', 'addr_agent2', 'to', 1, 3000);
+  " || return 1
+
+  # Private header: human1 as 'bcc'
+  db_exec "
+    INSERT INTO message_private_recipients (id, message_id, recipient_address_id, recipient_role, ordinal, created_at_ms)
+    VALUES ('mxr_v05_1', 'msg_v05', 'addr_human1', 'bcc', 1, 3000);
+  " || return 1
+
+  # Assert: BCC recipient must NOT appear in public recipients
+  local pub_count
+  pub_count=$(db_count "SELECT count(*) FROM message_public_recipients WHERE message_id = 'msg_v05' AND recipient_address_id = 'addr_human1';")
+  assert_eq "$pub_count" "0" "V05: BCC addr absent from public recipients" || return 1
+
+  # Assert: BCC recipient MUST appear in private recipients with role 'bcc'
+  local priv_count
+  priv_count=$(db_count "SELECT count(*) FROM message_private_recipients WHERE message_id = 'msg_v05' AND recipient_address_id = 'addr_human1' AND recipient_role = 'bcc';")
+  assert_eq "$priv_count" "1" "V05: BCC addr present in private recipients"
+}
+
+# --- S10: message immutability is service-enforced ---
+# MVP: immutability is service-enforced, not DB-trigger-enforced (see schema/001-init.sql header).
+# This test documents that no DB trigger blocks content mutation and that no lib function
+# provides an UPDATE path for message subject or body.
+test_s10_message_immutability_service_enforced() {
+  _schema_fixtures || return 1
+
+  # Setup: conversation + message with known content
+  db_exec "INSERT INTO conversations (id, created_at_ms) VALUES ('cnv_s10', 2000);" || return 1
+  db_exec "
+    INSERT INTO messages (id, conversation_id, sender_address_id, subject, body, created_at_ms)
+    VALUES ('msg_s10', 'cnv_s10', 'addr_agent1', 'Original Subject', 'Original Body', 3000);
+  " || return 1
+
+  # Verify initial content
+  local subj_before
+  subj_before=$(db_query "SELECT subject FROM messages WHERE id = 'msg_s10';")
+  assert_eq "$subj_before" "Original Subject" "S10: initial subject matches" || return 1
+
+  # Raw SQL UPDATE should succeed (no trigger blocks it — confirming service-layer enforcement)
+  db_exec "UPDATE messages SET subject = 'Modified Subject' WHERE id = 'msg_s10';" || {
+    echo "ASSERTION FAILED: S10 — raw UPDATE unexpectedly blocked (trigger added?)" >&2
+    return 1
+  }
+
+  local subj_after
+  subj_after=$(db_query "SELECT subject FROM messages WHERE id = 'msg_s10';")
+  assert_eq "$subj_after" "Modified Subject" "S10: raw UPDATE succeeded (no trigger)" || return 1
+
+  # Verify no lib function mutates message content columns (subject/body)
+  local update_hits
+  update_hits=$(grep -rlE 'UPDATE.*messages.*SET.*(subject|body)' "$PROJECT_DIR"/lib/*.sh 2>/dev/null | wc -l)
+  assert_eq "$update_hits" "0" "S10: no lib function mutates message subject/body"
+}
+
 # --- Register tests ---
 run_test "SCH-01: list address as sender rejected"           test_sch01_list_sender_rejected
 run_test "SCH-02: nested list member rejected"               test_sch02_nested_list_rejected
@@ -220,3 +289,5 @@ run_test "SCH-05: group member ordering deterministic"       test_sch05_group_or
 run_test "SCH-05b: duplicate ordinal within group rejected"  test_sch05b_duplicate_ordinal_rejected
 run_test "SCH-06: delivered event with actor rejected"       test_sch06_delivered_event_no_actor
 run_test "SCH-07: state_changed event without actor rejected" test_sch07_state_changed_needs_actor
+run_test "V05: BCC absent from public headers"               test_v05_bcc_privacy_public_headers
+run_test "S10: message immutability is service-enforced"     test_s10_message_immutability_service_enforced
