@@ -6,6 +6,7 @@ import { replyRoutes } from "./routes/reply.js";
 import { sentRoutes } from "./routes/sent.js";
 import { threadRoutes } from "./routes/thread.js";
 import { directoryRoutes } from "./routes/directory.js";
+import { eventsRoutes } from "./routes/events.js";
 
 export const app = new Hono();
 
@@ -19,3 +20,4 @@ app.route("/api/reply", replyRoutes);
 app.route("/api/sent", sentRoutes);
 app.route("/api/thread", threadRoutes);
 app.route("/api/directory", directoryRoutes);
+app.route("/api/events", eventsRoutes);
