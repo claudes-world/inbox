@@ -136,3 +136,26 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build all workspaces
         run: pnpm build
+
+  openapi-drift-check:
+    name: OpenAPI spec drift
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @inbox/contracts build
+      - run: pnpm --filter @inbox/bff build
+      - name: Regenerate openapi.json
+        run: pnpm gen:openapi
+      - name: Check for drift
+        run: |
+          git diff --exit-code packages/contracts/openapi.json \
+            || { echo "::error::openapi.json drift — run 'pnpm gen:openapi' and commit the result"; exit 1; }
