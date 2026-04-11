@@ -7,6 +7,7 @@ import { sentRoutes } from "./routes/sent.js";
 import { threadRoutes } from "./routes/thread.js";
 import { directoryRoutes } from "./routes/directory.js";
 import { eventsRoutes } from "./routes/events.js";
+import { analyticsRoutes } from "./routes/analytics.js";
 import { openApiRoutes } from "./routes/openapi.js";
 import { readLimiter, mutationLimiter } from "./lib/rate-limit.js";
 
@@ -36,6 +37,7 @@ app.use("/api/inbox/*", readLimiter);
 app.use("/api/sent/*", readLimiter);
 app.use("/api/thread/*", readLimiter);
 app.use("/api/events/*", readLimiter);
+app.use("/api/analytics/*", readLimiter);
 
 app.use("/api/send/*", mutationLimiter);
 app.use("/api/reply/*", mutationLimiter);
@@ -47,4 +49,5 @@ app.route("/api/sent", sentRoutes);
 app.route("/api/thread", threadRoutes);
 app.route("/api/directory", directoryRoutes);
 app.route("/api/events", eventsRoutes);
+app.route("/api/analytics", analyticsRoutes);
 app.route("/api/openapi.json", openApiRoutes);

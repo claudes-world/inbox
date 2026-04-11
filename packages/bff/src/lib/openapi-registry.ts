@@ -35,6 +35,9 @@ import { z } from "zod";
 import {
   // Response schemas
   addressSummarySchema,
+  analyticsOverviewQuerySchema,
+  analyticsOverviewResponseSchema,
+  analyticsTopEntrySchema,
   deliveryEventListResponseSchema,
   directoryListResponseSchema,
   directoryMembersResponseSchema,
@@ -146,6 +149,8 @@ function buildRegistry(): OpenAPIRegistry {
   registry.register("DirectoryShowResponse", directoryShowResponseSchema);
   registry.register("DirectoryMembersResponse", directoryMembersResponseSchema);
   registry.register("DeliveryEventListResponse", deliveryEventListResponseSchema);
+  registry.register("AnalyticsTopEntry", analyticsTopEntrySchema);
+  registry.register("AnalyticsOverviewResponse", analyticsOverviewResponseSchema);
 
   // ------------------------------------------------------------------
   // /health — unauthenticated liveness probe.
@@ -441,6 +446,33 @@ function buildRegistry(): OpenAPIRegistry {
         },
       },
       ...errorResponses({ rateLimited: true }),
+    },
+  });
+
+  // ------------------------------------------------------------------
+  // /api/analytics/overview — workflow dashboard analytics.
+  //
+  // Server-side aggregation over messages + deliveries. Replaces the
+  // UI's prior client-side aggregation over /api/inbox + /api/sent.
+  // ------------------------------------------------------------------
+  registry.registerPath({
+    method: "get",
+    path: "/api/analytics/overview",
+    tags: ["analytics"],
+    summary:
+      "Get message volume and engagement analytics for a time window",
+    request: {
+      headers: actorHeaderSchema,
+      query: analyticsOverviewQuerySchema,
+    },
+    responses: {
+      "200": {
+        description: "Analytics overview",
+        content: {
+          "application/json": { schema: analyticsOverviewResponseSchema },
+        },
+      },
+      ...errorResponses({ notFound: true, rateLimited: true }),
     },
   });
 

@@ -7,6 +7,10 @@
 import type { z } from "zod";
 import type {
   addressSummarySchema,
+  analyticsOverviewQuerySchema,
+  analyticsOverviewResponseSchema,
+  analyticsTimeWindowSchema,
+  analyticsTopEntrySchema,
   comingSoonErrorSchema,
   deliveryEventListResponseSchema,
   deliveryEventSchema,
@@ -158,6 +162,15 @@ export type CliResponse = SuccessResponse | ErrorEnvelope | ComingSoonError;
 // ---------------------------------------------------------------------------
 // BFF request / query types (OpenAPI track)
 // ---------------------------------------------------------------------------
+
+export type AnalyticsTimeWindow = z.infer<typeof analyticsTimeWindowSchema>;
+export type AnalyticsTopEntry = z.infer<typeof analyticsTopEntrySchema>;
+export type AnalyticsOverviewResponse = z.infer<
+  typeof analyticsOverviewResponseSchema
+>;
+export type AnalyticsOverviewQuery = z.infer<
+  typeof analyticsOverviewQuerySchema
+>;
 
 export type SendRequest = z.infer<typeof sendRequestSchema>;
 export type ReplyRequest = z.infer<typeof replyRequestSchema>;

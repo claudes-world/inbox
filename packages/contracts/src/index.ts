@@ -88,6 +88,11 @@ export {
   deliveryEventTypeSchema,
   deliveryEventSchema,
   deliveryEventListResponseSchema,
+  // Analytics (workflow dashboard)
+  analyticsTimeWindowSchema,
+  analyticsTopEntrySchema,
+  analyticsOverviewResponseSchema,
+  analyticsOverviewQuerySchema,
   // BFF request / query schemas (OpenAPI track)
   recipientInputSchema,
   sendRequestSchema,
@@ -142,6 +147,11 @@ export type {
   ThreadItem,
   ThreadResponse,
   WhoamiResponse,
+  // Analytics types (workflow dashboard)
+  AnalyticsTimeWindow,
+  AnalyticsTopEntry,
+  AnalyticsOverviewResponse,
+  AnalyticsOverviewQuery,
   // BFF request / query types
   SendRequest,
   ReplyRequest,
