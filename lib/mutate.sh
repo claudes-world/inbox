@@ -125,8 +125,8 @@ do_read_history() {
   local i
   for (( i=${#lines[@]}-1; i>=0; i-- )); do
     local line="${lines[$i]}"
-    local h_id h_cnv h_parent h_sender_id h_subject h_body h_urgency h_created_at h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis
-    IFS=$'\x01' read -r h_id h_cnv h_parent h_sender_id h_subject h_body h_urgency h_created_at h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis <<< "$line"
+    local h_id h_cnv h_parent h_sender_id h_subject h_body _h_urgency h_created_at _h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis
+    IFS=$'\x01' read -r h_id h_cnv h_parent h_sender_id h_subject h_body _h_urgency h_created_at _h_dly_id h_eff_role h_eng h_d_vis h_view h_s_vis <<< "$line"
 
     # Parent redaction: check if parent is in visible set
     local redacted_parent="null"

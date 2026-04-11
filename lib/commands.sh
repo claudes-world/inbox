@@ -11,6 +11,14 @@ require_flag_value() {
   fi
 }
 
+# _require_actor — Resolve actor ID or exit with error JSON.
+# Sets ACTOR_ID in the caller's scope. Exits on failure.
+_require_actor() {
+  ACTOR_ID=$(resolve_actor_id) || {
+    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$ACTOR_ID"; exit $rc
+  }
+}
+
 # ============================================================================
 # cmd_whoami — Resolve actor, output identity info.
 # ============================================================================
@@ -78,15 +86,13 @@ cmd_send() {
     esac
   done
 
-  # Validate required fields
   if [[ -z "$to_addrs" ]]; then
     format_error "invalid_argument" "at least one --to recipient is required" || exit $?
   fi
 
-  # Validate urgency
   validate_urgency "$urgency" || exit $?
 
-  # Parse body source — only count stdin when it's actually a pipe/redirect
+  # Only count stdin when it's actually a pipe/redirect
   local stdin_is_pipe=0
   if [[ ! -t 0 ]] && [[ -p /dev/stdin || -f /dev/stdin ]]; then
     stdin_is_pipe=1
@@ -96,21 +102,13 @@ cmd_send() {
   parse_body_source "$body_flag" "$body_file" "$stdin_is_pipe" "$body_flag_set" || exit $?
   local body="$PARSED_BODY"
 
-  # Build references JSON
   local refs_json="[]"
   if [[ ${#_REF_KINDS[@]} -gt 0 ]]; then
     refs_json=$(build_refs_json)
   fi
 
-  # Resolve actor
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?
-    [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"
-    exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # Call library
   local result
   result=$(do_send "$actor_id" "$to_addrs" "$cc_addrs" "$subject" "$body" "$urgency" "$refs_json") || {
     local rc=$?
@@ -159,27 +157,18 @@ cmd_list() {
     esac
   done
 
-  # Validate state
   case "$state" in
     any|unread|read|acknowledged) ;;
     *) format_error "invalid_argument" "invalid state filter: $state" || exit $? ;;
   esac
 
-  # Validate visibility
   case "$visibility" in
     active|hidden|any) ;;
     *) format_error "invalid_argument" "invalid visibility filter: $visibility" || exit $? ;;
   esac
 
-  # Resolve actor
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?
-    [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"
-    exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # Query inbox
   local where_clauses="d.recipient_address_id = '$actor_id'"
 
   case "$visibility" in
@@ -205,7 +194,7 @@ cmd_list() {
   local rows
   rows=$(printf '%s\n' \
     "PRAGMA foreign_keys = ON;" \
-    ".separator \"$(printf '\t')\"" \
+    ".separator \"$(printf '\x1f')\"" \
     "SELECT m.id, m.conversation_id, m.subject, m.body, m.created_at_ms,
       d.engagement_state, d.visibility_state, d.effective_role, d.delivered_at_ms, d.id as delivery_id
     FROM deliveries d
@@ -223,10 +212,9 @@ cmd_list() {
     [[ -z "$row" ]] && continue
     count=$((count + 1))
 
-    local m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id
-    IFS=$'\t' read -r m_id m_cnv m_subj m_body m_ts d_eng d_vis d_role d_at d_id <<< "$row"
+    local m_id m_cnv m_subj m_body _m_ts d_eng d_vis d_role d_at d_id
+    IFS=$'\x1f' read -r m_id m_cnv m_subj m_body _m_ts d_eng d_vis d_role d_at d_id <<< "$row"
 
-    # Get sender
     local sender_id sender_str safe_m_id
     safe_m_id="$(sql_escape "$m_id")"
     sender_id=$(db_query "SELECT sender_address_id FROM messages WHERE id = '$safe_m_id';")
@@ -235,7 +223,6 @@ cmd_list() {
     local safe_subj="${m_subj//\\/\\\\}"
     safe_subj="${safe_subj//\"/\\\"}"
 
-    # Body preview (first 80 chars)
     local body_preview="${m_body:0:80}"
     local safe_preview="${body_preview//\\/\\\\}"
     safe_preview="${safe_preview//\"/\\\"}"
@@ -265,7 +252,6 @@ cmd_list() {
 cmd_read() {
   local msg_id="" peek=0 history_count=0
 
-  # First positional arg is the message ID
   if [[ $# -gt 0 && "$1" != --* ]]; then
     msg_id="$1"; shift
   fi
@@ -278,22 +264,13 @@ cmd_read() {
     esac
   done
 
-  # Validate ID
   validate_msg_id "$msg_id" || exit $?
 
-  # Resolve actor
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?
-    [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"
-    exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # SQL-escape msg_id for direct SQL interpolation
   local safe_msg_id
   safe_msg_id="$(sql_escape "$msg_id")"
 
-  # Do read (marks as read unless --peek)
   local read_result
   read_result=$(do_read "$msg_id" "$actor_id" "$peek") || {
     local rc=$?
@@ -305,7 +282,6 @@ cmd_read() {
     exit $rc
   }
 
-  # Now get the full message details for display
   local dly_row
   dly_row=$(resolve_inbox "$msg_id" "$actor_id") || {
     local rc=$?
@@ -319,23 +295,21 @@ cmd_read() {
   visibility_state=$(echo "$dly_row" | cut -d'|' -f6)
   effective_role=$(echo "$dly_row" | cut -d'|' -f4)
 
-  # Get message content
   local msg_row
   msg_row=$(printf '%s\n' \
     "PRAGMA foreign_keys = ON;" \
-    ".separator \"$(printf '\t')\"" \
-    "SELECT id, conversation_id, parent_message_id, sender_address_id,
+    ".separator \"$(printf '\x1f')\"" \
+    "SELECT id, conversation_id, COALESCE(parent_message_id, '') as parent_message_id, sender_address_id,
       subject, body, sender_urgency, created_at_ms
     FROM messages WHERE id = '$safe_msg_id';" \
     | sqlite3 "$INBOX_DB")
 
-  local m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts
-  IFS=$'\t' read -r m_id m_cnv m_parent m_sender_id m_subj m_body m_urgency m_ts <<< "$msg_row"
+  local m_id m_cnv m_parent m_sender_id m_subj m_body _m_urgency _m_ts
+  IFS=$'\x1f' read -r m_id m_cnv m_parent m_sender_id m_subj m_body _m_urgency _m_ts <<< "$msg_row"
 
   local sender_str
   sender_str=$(lookup_address_id_to_string "$m_sender_id")
 
-  # Get public recipients
   local pub_to_json="["
   local pub_cc_json="["
   local first_to=1 first_cc=1
@@ -362,7 +336,6 @@ cmd_read() {
   pub_to_json+="]"
   pub_cc_json+="]"
 
-  # Get references
   local refs_json="["
   local first_ref=1
   local ref_rows
@@ -390,7 +363,6 @@ cmd_read() {
   done <<< "$ref_rows"
   refs_json+="]"
 
-  # Escape message fields
   local safe_subj
   safe_subj="$(json_escape "$m_subj")"
   local safe_body
@@ -399,8 +371,10 @@ cmd_read() {
   local parent_json="null"
   if [[ -n "$m_parent" ]]; then
     # Check if parent is visible to actor (has delivery or sent_item)
-    local safe_parent="$(sql_escape "$m_parent")"
-    local safe_actor="$(sql_escape "$actor_id")"
+    local safe_parent
+    safe_parent="$(sql_escape "$m_parent")"
+    local safe_actor
+    safe_actor="$(sql_escape "$actor_id")"
     local parent_visible
     parent_visible=$(db_query "SELECT 1 FROM deliveries WHERE message_id='$safe_parent' AND recipient_address_id='$safe_actor' UNION SELECT 1 FROM sent_items si JOIN messages m ON si.message_id=m.id WHERE m.id='$safe_parent' AND m.sender_address_id='$safe_actor' LIMIT 1")
     if [[ -n "$parent_visible" ]]; then
@@ -408,7 +382,6 @@ cmd_read() {
     fi
   fi
 
-  # History
   local history_json="[]"
   if [[ "$history_count" -gt 0 ]]; then
     history_json=$(do_read_history "$msg_id" "$actor_id" "$history_count")
@@ -430,7 +403,6 @@ cmd_reply() {
   local -a _REF_VALUES=()
   local subject_set=0
 
-  # First positional arg is the message ID
   if [[ $# -gt 0 && "$1" != --* ]]; then
     msg_id="$1"; shift
   fi
@@ -467,7 +439,7 @@ cmd_reply() {
   validate_msg_id "$msg_id" || exit $?
   validate_urgency "$urgency" || exit $?
 
-  # Parse body — only count stdin when it's actually a pipe/redirect
+  # Only count stdin when it's actually a pipe/redirect
   local stdin_is_pipe=0
   if [[ ! -t 0 ]] && [[ -p /dev/stdin || -f /dev/stdin ]]; then
     stdin_is_pipe=1
@@ -477,15 +449,8 @@ cmd_reply() {
   parse_body_source "$body_flag" "$body_file" "$stdin_is_pipe" "$body_flag_set" || exit $?
   local body="$PARSED_BODY"
 
-  # Resolve actor
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?
-    [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"
-    exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # Resolve explicit --to addresses to IDs
   local to_addr_ids=""
   if [[ -n "$to_addrs" ]]; then
     local IFS=','
@@ -501,7 +466,6 @@ cmd_reply() {
     unset IFS
   fi
 
-  # Resolve explicit --cc addresses to IDs
   local cc_addr_ids=""
   if [[ -n "$cc_addrs" ]]; then
     local IFS=','
@@ -517,7 +481,6 @@ cmd_reply() {
     unset IFS
   fi
 
-  # Build references JSON
   local refs_json="[]"
   if [[ ${#_REF_KINDS[@]} -gt 0 ]]; then
     refs_json=$(build_refs_json)
@@ -549,10 +512,7 @@ cmd_ack() {
 
   validate_msg_id "$msg_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(do_ack "$msg_id" "$actor_id") || {
@@ -573,10 +533,7 @@ cmd_hide() {
 
   validate_msg_id "$msg_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(do_hide "$msg_id" "$actor_id") || {
@@ -597,10 +554,7 @@ cmd_unhide() {
 
   validate_msg_id "$msg_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(do_unhide "$msg_id" "$actor_id") || {
@@ -645,10 +599,7 @@ cmd_sent_list() {
     esac
   done
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(query_sent_list "$actor_id" "$visibility" "$since_ms" "$until_ms" "$limit") || {
@@ -669,10 +620,7 @@ cmd_sent_read() {
 
   validate_msg_id "$msg_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(query_sent_read "$msg_id" "$actor_id") || {
@@ -693,10 +641,7 @@ cmd_sent_hide() {
 
   validate_msg_id "$msg_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(do_sent_hide "$msg_id" "$actor_id") || {
@@ -717,10 +662,7 @@ cmd_sent_unhide() {
 
   validate_msg_id "$msg_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   local result
   result=$(do_sent_unhide "$msg_id" "$actor_id") || {
@@ -738,7 +680,6 @@ cmd_sent_unhide() {
 cmd_thread() {
   local cnv_id="" since_ms="" until_ms="" limit=50 full_flag=0
 
-  # First positional arg is the conversation ID
   [[ $# -gt 0 && "$1" != --* ]] && { cnv_id="$1"; shift; }
 
   while [[ $# -gt 0 ]]; do
@@ -770,25 +711,18 @@ cmd_thread() {
 
   validate_cnv_id "$cnv_id" || exit $?
 
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # SQL-escape cnv_id for direct SQL interpolation
   local safe_cnv_id
   safe_cnv_id="$(sql_escape "$cnv_id")"
 
-  # Get visible message IDs for parent redaction
   local visible_ids
   visible_ids=$(resolve_thread_msg_ids "$cnv_id" "$actor_id")
 
-  # Build time-bounded query
   local time_clause=""
   [[ -n "$since_ms" ]] && time_clause="$time_clause AND m.created_at_ms >= $since_ms"
   [[ -n "$until_ms" ]] && time_clause="$time_clause AND m.created_at_ms < $until_ms"
 
-  # Get total visible count (for truncation metadata)
   local total_visible_count
   total_visible_count=$(db_count "SELECT count(DISTINCT m.id)
     FROM messages m
@@ -802,8 +736,8 @@ cmd_thread() {
   local thread_rows
   thread_rows=$(printf '%s\n' \
     "PRAGMA foreign_keys = ON;" \
-    ".separator \"$(printf '\t')\"" \
-    "SELECT m.id, m.conversation_id, m.parent_message_id, m.sender_address_id,
+    ".separator \"$(printf '\x1f')\"" \
+    "SELECT m.id, m.conversation_id, COALESCE(m.parent_message_id, '') as parent_message_id, m.sender_address_id,
       m.subject, m.body, m.sender_urgency, m.created_at_ms,
       COALESCE(d.id, '') as delivery_id,
       COALESCE(d.effective_role, '') as effective_role,
@@ -837,8 +771,8 @@ cmd_thread() {
     local line="${lines[$i]}"
     count=$((count + 1))
 
-    local t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis
-    IFS=$'\t' read -r t_id t_cnv t_parent t_sender_id t_subj t_body t_urgency t_ts t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
+    local t_id _t_cnv t_parent t_sender_id t_subj t_body _t_urgency t_ts _t_dly_id t_role t_eng t_d_vis t_view t_s_vis
+    IFS=$'\x1f' read -r t_id _t_cnv t_parent t_sender_id t_subj t_body _t_urgency t_ts _t_dly_id t_role t_eng t_d_vis t_view t_s_vis <<< "$line"
 
     # Parent redaction
     local redacted_parent="null"
@@ -861,13 +795,11 @@ cmd_thread() {
       item+=",\"visibility_state\":\"$t_s_vis\""
     fi
 
-    # Body preview or full body
     if [[ "$full_flag" == "1" ]]; then
       local safe_body="${t_body//\\/\\\\}"; safe_body="${safe_body//\"/\\\"}"
       safe_body="${safe_body//$'\n'/\\n}"
       item+=",\"body\":\"$safe_body\""
 
-      # References for full mode
       local refs_json="["
       local first_ref=1
       local ref_rows
@@ -919,13 +851,8 @@ cmd_directory_list() {
     esac
   done
 
-  # Validate actor is active
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # Validate --kind against allowed enum values
   if [[ -n "$kind_filter" ]]; then
     case "$kind_filter" in
       agent|human|service|list) ;; # valid
@@ -960,7 +887,9 @@ cmd_directory_list() {
     local desc_json="null"; [[ -n "$desc" ]] && desc_json="\"$(json_escape "$desc")\""
     local class_json="null"; [[ -n "$classification" ]] && class_json="\"$(json_escape "$classification")\""
 
-    local item="{\"address\":\"$addr\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"description\":$desc_json,\"is_active\":$([ "$is_active" = "1" ] && echo "true" || echo "false"),\"is_listed\":$([ "$is_listed" = "1" ] && echo "true" || echo "false"),\"classification\":$class_json}"
+    local is_active_json; is_active_json=$([ "$is_active" = "1" ] && echo "true" || echo "false")
+    local is_listed_json; is_listed_json=$([ "$is_listed" = "1" ] && echo "true" || echo "false")
+    local item="{\"address\":\"$addr\",\"kind\":\"$kind\",\"display_name\":$dn_json,\"description\":$desc_json,\"is_active\":$is_active_json,\"is_listed\":$is_listed_json,\"classification\":$class_json}"
 
     [[ $first -eq 1 ]] && { items+="$item"; first=0; } || items+=",$item"
   done <<< "$rows"
@@ -984,11 +913,7 @@ cmd_directory_show() {
     format_error "invalid_argument" "address argument is required" || exit $?
   fi
 
-  # Validate actor is active
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   if [[ "$address" != *@* ]]; then
     format_error "invalid_argument" "invalid address format: missing @" "address" || exit $?
@@ -1034,11 +959,7 @@ cmd_directory_members() {
     format_error "invalid_argument" "list address argument is required" || exit $?
   fi
 
-  # Validate actor is active
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
   if [[ "$address" != *@* ]]; then
     format_error "invalid_argument" "invalid address format: missing @" "address" || exit $?
@@ -1065,7 +986,6 @@ cmd_directory_members() {
     format_error "invalid_argument" "address is not a list: $address" "address" || exit $?
   fi
 
-  # Get members in ordinal order
   local members_json="["
   local first=1
 
@@ -1125,13 +1045,9 @@ cmd_give_feedback() {
     *) format_error "invalid_argument" "invalid feedback kind: $kind (must be verb|noun|flag|workflow)" || exit $? ;;
   esac
 
-  # Validate actor is active
-  local actor_id
-  actor_id=$(resolve_actor_id) || {
-    local rc=$?; [[ "$INBOX_JSON_MODE" == "1" ]] && echo "$actor_id"; exit $rc
-  }
+  _require_actor; local actor_id="$ACTOR_ID"
 
-  # Parse body (wanted text) — only count stdin when it's actually a pipe/redirect
+  # Only count stdin when it's actually a pipe/redirect
   local stdin_is_pipe=0
   if [[ ! -t 0 ]] && [[ -p /dev/stdin || -f /dev/stdin ]]; then
     stdin_is_pipe=1
@@ -1141,7 +1057,6 @@ cmd_give_feedback() {
   parse_body_source "$wanted" "$body_file" "$stdin_is_pipe" "$body_flag_set" || exit $?
   local feedback_body="$PARSED_BODY"
 
-  # Record feedback via experimental module
   local feedback_id
   feedback_id=$(do_give_feedback "$actor_id" "$feature" "$kind" "$feedback_body" "$context" "$outcome" "$command_text")
 

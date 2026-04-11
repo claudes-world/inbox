@@ -12,7 +12,6 @@ resolve_actor() {
     return "$EXIT_INVALID_ARGUMENT"
   fi
 
-  # Parse local_part@host
   local local_part host
   if [[ "$address" != *@* ]]; then
     error_json "invalid_argument" "invalid address format: missing @" "address"
@@ -26,12 +25,10 @@ resolve_actor() {
     return "$EXIT_INVALID_ARGUMENT"
   fi
 
-  # Escape for SQL safety
   local escaped_local escaped_host
   escaped_local=$(sql_escape "$local_part")
   escaped_host=$(sql_escape "$host")
 
-  # Look up in addresses table
   local row
   row=$(db_query "SELECT id, local_part, host, kind, display_name, is_active, is_listed, classification
     FROM addresses WHERE local_part = '$escaped_local' AND host = '$escaped_host';")
@@ -42,19 +39,16 @@ resolve_actor() {
     return "$EXIT_NOT_FOUND"
   fi
 
-  # Parse fields
-  local addr_id addr_kind addr_active
+  local addr_id _addr_kind addr_active
   addr_id=$(echo "$row" | cut -d'|' -f1)
-  addr_kind=$(echo "$row" | cut -d'|' -f4)
+  _addr_kind=$(echo "$row" | cut -d'|' -f4)
   addr_active=$(echo "$row" | cut -d'|' -f6)
 
-  # Check is_active
   if [[ "$addr_active" != "1" ]]; then
     error_json "permission_denied" "acting address is inactive" "address"
     return "$EXIT_PERMISSION_DENIED"
   fi
 
-  # Return the full row (pipe-delimited)
   echo "$row"
   return 0
 }
@@ -208,7 +202,6 @@ validate_direct_recipient() {
   local_part="${address%%@*}"
   host="${address#*@}"
 
-  # Escape for SQL safety
   local escaped_local escaped_host
   escaped_local=$(sql_escape "$local_part")
   escaped_host=$(sql_escape "$host")
@@ -273,63 +266,6 @@ expand_list() {
     WHERE gm.group_address_id = '$list_addr_id'
       AND a.is_active = 1
     ORDER BY gm.ordinal ASC, gm.member_address_id ASC"
-}
-
-# normalize_recipients — Dedupe same-role, preserve cross-role, assign effective_role by precedence.
-# Args: to_list (comma-sep addr IDs), cc_list (comma-sep addr IDs), bcc_list (comma-sep addr IDs)
-# Outputs lines of: addr_id|effective_role
-# Deduplication rules:
-#   - exact duplicates within same role are deduped (first-seen wins)
-#   - duplicates across roles: effective_role assigned by precedence to > cc > bcc
-normalize_recipients() {
-  local to_list="$1"
-  local cc_list="${2:-}"
-  local bcc_list="${3:-}"
-
-  # Build an associative array: addr_id -> best role
-  # Since bash 4+ has associative arrays, use them
-  declare -A _seen_role
-  declare -a _order
-
-  local IFS=','
-  # Process to first (highest precedence)
-  for addr_id in $to_list; do
-    [[ -z "$addr_id" ]] && continue
-    if [[ -z "${_seen_role[$addr_id]+x}" ]]; then
-      _seen_role["$addr_id"]="to"
-      _order+=("$addr_id")
-    fi
-    # If already seen, to > anything, so don't downgrade
-  done
-
-  # Process cc
-  for addr_id in $cc_list; do
-    [[ -z "$addr_id" ]] && continue
-    if [[ -z "${_seen_role[$addr_id]+x}" ]]; then
-      _seen_role["$addr_id"]="cc"
-      _order+=("$addr_id")
-    fi
-    # If already 'to', don't downgrade
-  done
-
-  # Process bcc
-  for addr_id in $bcc_list; do
-    [[ -z "$addr_id" ]] && continue
-    if [[ -z "${_seen_role[$addr_id]+x}" ]]; then
-      _seen_role["$addr_id"]="bcc"
-      _order+=("$addr_id")
-    fi
-  done
-
-  if [[ ${#_order[@]} -eq 0 ]]; then
-    error_json "invalid_state" "no recipients after normalization"
-    return "$EXIT_INVALID_STATE"
-  fi
-
-  for addr_id in "${_order[@]}"; do
-    echo "${addr_id}|${_seen_role[$addr_id]}"
-  done
-  return 0
 }
 
 # construct_reply_all_audience — Build reply-all recipient list.

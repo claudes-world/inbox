@@ -6,6 +6,7 @@ set -euo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$TEST_DIR/.." && pwd)"
+export PROJECT_DIR
 
 # Parse arguments
 GATE=""

@@ -39,6 +39,7 @@ parse_body_source() {
     PARSED_BODY=$(cat)
   else
     # No body source provided — empty body is valid
+    # shellcheck disable=SC2034  # read by callers
     PARSED_BODY=""
   fi
 
@@ -119,6 +120,7 @@ parse_ref_file() {
     return $?
   fi
 
+  # shellcheck disable=SC2034  # read by callers
   REF_VALUE=$(cat "$ref_path")
   return 0
 }
@@ -149,6 +151,7 @@ parse_time_filter() {
     return $?
   }
 
+  # shellcheck disable=SC2034  # read by callers
   PARSED_TIME_MS=$((epoch_s * 1000))
   return 0
 }
@@ -229,6 +232,7 @@ build_refs_json() {
   local first=1
   local i=0
 
+  # shellcheck disable=SC2153  # _REF_KINDS/_REF_VALUES set by callers
   while [[ $i -lt ${#_REF_KINDS[@]} ]]; do
     local kind="${_REF_KINDS[$i]}"
     local value="${_REF_VALUES[$i]}"
