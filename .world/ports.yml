@@ -1,0 +1,21 @@
+# Port declarations for port-for allocation (ADR 0003).
+#
+# Migration note (2026-04-10):
+#   Inbox currently uses 38850 (BFF) and 58850 (UI / Vite dev server).
+#   These fall in the ADR 0003 `test-*` sub-bands (38600-38899,
+#   58600-58899) rather than `dev-*` (38300-38599, 58300-58599) where
+#   active development services logically belong. port-for does not
+#   validate canonical-in-band; band is only used as a fallback range
+#   when the canonical is already taken. We keep the current canonical
+#   ports here so existing Caddy routes (inbox.claude.do → 38850/58850)
+#   and dev workflows (`pnpm dev` in packages/bff and packages/ui) are
+#   not disturbed. A future migration can renumber into the proper
+#   `dev-*` sub-bands.
+repo: inbox
+purposes:
+  - name: inbox-dev-server
+    band: dev-backend       # 38300-38599 (canonical 38850 is out-of-band; see migration note)
+    canonical: 38850
+  - name: inbox-dev-web
+    band: dev-frontend      # 58300-58599 (canonical 58850 is out-of-band; see migration note)
+    canonical: 58850
