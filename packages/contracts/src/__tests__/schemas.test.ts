@@ -29,6 +29,12 @@ import {
   feedbackId,
   addressStr,
   timestampMs,
+  experimentSchema,
+  experimentListResponseSchema,
+  feedbackEntrySchema,
+  feedbackBoardResponseSchema,
+  deliveryEventSchema,
+  deliveryEventListResponseSchema,
 } from "../schemas.js";
 import {
   whoamiFixture,
@@ -53,6 +59,16 @@ import {
   engManager,
   ceo,
   engLeadsList,
+  experimentActive,
+  experimentCompleted,
+  experimentListFixture,
+  feedbackPositive,
+  feedbackNegative,
+  feedbackBoardFixture,
+  deliveryEventDelivered,
+  deliveryEventRead,
+  deliveryEventAcknowledged,
+  deliveryEventListFixture,
 } from "../fixtures.js";
 
 // ---------------------------------------------------------------------------
@@ -251,5 +267,150 @@ describe("schema rejections", () => {
   it("mutation rejects unknown view_kind", () => {
     const bad = { ...ackFixture, view_kind: "draft" };
     expect(mutationResponseSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Experiments
+// ---------------------------------------------------------------------------
+
+describe("experiment schemas", () => {
+  it.each([
+    ["active", experimentActive],
+    ["completed", experimentCompleted],
+  ])("fixture %s parses", (_name, fixture) => {
+    expect(experimentSchema.parse(fixture)).toEqual(fixture);
+  });
+
+  it("experiment list fixture parses", () => {
+    expect(experimentListResponseSchema.parse(experimentListFixture)).toEqual(
+      experimentListFixture,
+    );
+  });
+
+  it("rejects experiment id without exp_ prefix", () => {
+    const bad = { ...experimentActive, id: "xyz_foo" };
+    expect(experimentSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects experiment with fewer than two variants", () => {
+    const bad = { ...experimentActive, variants: [{ name: "only", weight: 100 }] };
+    expect(experimentSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects experiment variant with weight > 100", () => {
+    const bad = {
+      ...experimentActive,
+      variants: [
+        { name: "a", weight: 150 },
+        { name: "b", weight: 50 },
+      ],
+    };
+    expect(experimentSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects experiment with unknown status", () => {
+    const bad = { ...experimentActive, status: "draft" };
+    expect(experimentSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("accepts experiment with null end_ts and omitted metrics", () => {
+    const minimal = {
+      id: "exp_min_001",
+      name: "Minimal",
+      description: "",
+      status: "paused" as const,
+      variants: [
+        { name: "a", weight: 50 },
+        { name: "b", weight: 50 },
+      ],
+      start_ts: 1_000_000,
+      end_ts: null,
+    };
+    expect(experimentSchema.safeParse(minimal).success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Feedback board
+// ---------------------------------------------------------------------------
+
+describe("feedback board schemas", () => {
+  it.each([
+    ["positive", feedbackPositive],
+    ["negative", feedbackNegative],
+  ])("fixture %s parses", (_name, fixture) => {
+    expect(feedbackEntrySchema.parse(fixture)).toEqual(fixture);
+  });
+
+  it("feedback board fixture parses", () => {
+    expect(feedbackBoardResponseSchema.parse(feedbackBoardFixture)).toEqual(
+      feedbackBoardFixture,
+    );
+  });
+
+  it("rejects feedback with rating out of range", () => {
+    const bad = { ...feedbackPositive, rating: 6 };
+    expect(feedbackEntrySchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects feedback with unknown sentiment", () => {
+    const bad = { ...feedbackPositive, sentiment: "angry" };
+    expect(feedbackEntrySchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects feedback id without fbk_ prefix", () => {
+    const bad = { ...feedbackPositive, id: "msg_001" };
+    expect(feedbackEntrySchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects feedback board with null average_rating of wrong type", () => {
+    const bad = { ...feedbackBoardFixture, summary: { ...feedbackBoardFixture.summary, average_rating: 7 } };
+    expect(feedbackBoardResponseSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Delivery events (inspector)
+// ---------------------------------------------------------------------------
+
+describe("delivery event schemas", () => {
+  it.each([
+    ["delivered", deliveryEventDelivered],
+    ["read", deliveryEventRead],
+    ["acknowledged", deliveryEventAcknowledged],
+  ])("fixture %s parses", (_name, fixture) => {
+    expect(deliveryEventSchema.parse(fixture)).toEqual(fixture);
+  });
+
+  it("delivery event list fixture parses", () => {
+    expect(
+      deliveryEventListResponseSchema.parse(deliveryEventListFixture),
+    ).toEqual(deliveryEventListFixture);
+  });
+
+  it("rejects delivery event id without evt_ prefix", () => {
+    const bad = { ...deliveryEventDelivered, id: "msg_001" };
+    expect(deliveryEventSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects delivery event with unknown event_type", () => {
+    const bad = { ...deliveryEventDelivered, event_type: "teleported" };
+    expect(deliveryEventSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("accepts delivery event with null from_state (initial event)", () => {
+    expect(
+      deliveryEventSchema.safeParse({
+        ...deliveryEventDelivered,
+        from_state: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects delivery event missing to_state", () => {
+    const bad = { ...deliveryEventDelivered } as Record<string, unknown>;
+    delete bad.to_state;
+    expect(deliveryEventSchema.safeParse(bad).success).toBe(false);
   });
 });
