@@ -12,7 +12,8 @@
     "dev:ui": "pnpm --filter @inbox/ui dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "gen:openapi": "node scripts/generate-openapi.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

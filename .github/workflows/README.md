@@ -12,6 +12,7 @@ Jobs (all parallel):
 - **test-ui** — `@inbox/ui` unit tests (~40, includes contract drift validation).
 - **e2e-ui** — Playwright E2E (~29 tests), chromium only. Uploads `playwright-report` artifact on failure.
 - **build-all** — `pnpm build` across all workspaces.
+- **openapi-drift-check** — regenerates `packages/contracts/openapi.json` from the annotated Zod schemas (via `scripts/generate-openapi.mjs`) and fails if the committed file no longer matches. Depends on `lint-and-typecheck` so it only runs once the workspace compiles cleanly. When a schema changes, run `pnpm gen:openapi` locally and commit the regenerated file alongside the schema edit.
 
 Concurrency: in-progress runs on the same ref are cancelled when a new commit lands.
 Permissions: read-only (`contents: read`).
