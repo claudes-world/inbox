@@ -10,5 +10,18 @@ export default defineConfig({
     // that dir explicitly — those tests run via `pnpm test:e2e`, not
     // vitest, and the two test runners aren't compatible.
     exclude: ["**/node_modules/**", "**/dist/**", "**/e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json-summary"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "**/*.test.{ts,tsx}",
+        "**/__tests__/**",
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/e2e/**",
+      ],
+      // Reporting only — no thresholds enforced.
+    },
   },
 });

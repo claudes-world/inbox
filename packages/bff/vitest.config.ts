@@ -10,5 +10,22 @@ export default defineConfig({
       // schema auto-applied.
       INBOX_DB: ":memory:",
     },
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "json-summary"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "**/*.test.{ts,tsx}",
+        "**/__tests__/**",
+        "**/node_modules/**",
+        "**/dist/**",
+        // Generated boilerplate — the openapi-registry wires Zod schemas into
+        // zod-to-openapi and is exercised via the openapi.test.ts output
+        // snapshot rather than directly. Excluding keeps coverage numbers
+        // reflective of hand-written logic.
+        "src/lib/openapi-registry.ts",
+      ],
+      // Reporting only — no thresholds enforced.
+    },
   },
 });
