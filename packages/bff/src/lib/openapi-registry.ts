@@ -72,10 +72,16 @@ const actorHeaderSchema = z.object({
     }),
 });
 
-/** Reusable error-response set for endpoints that can 400/404/500. */
+/**
+ * Reusable error-response set for endpoints that can 400/404/409/429/500.
+ *
+ * `rateLimited` toggles the 429 entry — set to true on every endpoint that
+ * sits behind `readLimiter` or `mutationLimiter` in `app.ts`.
+ */
 function errorResponses(opts: {
   notFound?: boolean;
   conflict?: boolean;
+  rateLimited?: boolean;
 }): Record<string, {
   description: string;
   content: { "application/json": { schema: typeof errorResponseSchema } };
@@ -102,6 +108,13 @@ function errorResponses(opts: {
   if (opts.conflict) {
     base["409"] = {
       description: "Request conflicts with current state",
+      content: { "application/json": { schema: errorResponseSchema } },
+    };
+  }
+  if (opts.rateLimited) {
+    base["429"] = {
+      description:
+        "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
       content: { "application/json": { schema: errorResponseSchema } },
     };
   }
@@ -171,7 +184,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "List of inbox items",
         content: { "application/json": { schema: listResponseSchema } },
       },
-      ...errorResponses({}),
+      ...errorResponses({ rateLimited: true }),
     },
   });
 
@@ -190,7 +203,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "Full message content and delivery state",
         content: { "application/json": { schema: readResponseSchema } },
       },
-      ...errorResponses({ notFound: true }),
+      ...errorResponses({ notFound: true, rateLimited: true }),
     },
   });
 
@@ -209,7 +222,9 @@ function buildRegistry(): OpenAPIRegistry {
           description: `Message ${op} result`,
           content: { "application/json": { schema: mutationResponseSchema } },
         },
-        ...errorResponses({ notFound: true }),
+        // /api/inbox/* uses the readLimiter (ack/hide/unhide are cheap
+        // idempotent state toggles, not content mutations).
+        ...errorResponses({ notFound: true, rateLimited: true }),
       },
     });
   }
@@ -234,7 +249,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "Message created and delivered",
         content: { "application/json": { schema: sendResponseSchema } },
       },
-      ...errorResponses({ conflict: true }),
+      ...errorResponses({ conflict: true, rateLimited: true }),
     },
   });
 
@@ -259,7 +274,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "Reply created and delivered",
         content: { "application/json": { schema: replyResponseSchema } },
       },
-      ...errorResponses({ notFound: true, conflict: true }),
+      ...errorResponses({ notFound: true, conflict: true, rateLimited: true }),
     },
   });
 
@@ -277,7 +292,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "List of sent items",
         content: { "application/json": { schema: sentListResponseSchema } },
       },
-      ...errorResponses({}),
+      ...errorResponses({ rateLimited: true }),
     },
   });
 
@@ -295,7 +310,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "Sent message details",
         content: { "application/json": { schema: sentReadResponseSchema } },
       },
-      ...errorResponses({ notFound: true }),
+      ...errorResponses({ notFound: true, rateLimited: true }),
     },
   });
 
@@ -314,7 +329,7 @@ function buildRegistry(): OpenAPIRegistry {
           description: `Sent ${op} result`,
           content: { "application/json": { schema: sentMutationResponseSchema } },
         },
-        ...errorResponses({ notFound: true }),
+        ...errorResponses({ notFound: true, rateLimited: true }),
       },
     });
   }
@@ -339,7 +354,7 @@ function buildRegistry(): OpenAPIRegistry {
         description: "Thread items in chronological order",
         content: { "application/json": { schema: threadResponseSchema } },
       },
-      ...errorResponses({ notFound: true }),
+      ...errorResponses({ notFound: true, rateLimited: true }),
     },
   });
 
@@ -425,7 +440,7 @@ function buildRegistry(): OpenAPIRegistry {
           "application/json": { schema: deliveryEventListResponseSchema },
         },
       },
-      ...errorResponses({}),
+      ...errorResponses({ rateLimited: true }),
     },
   });
 

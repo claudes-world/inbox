@@ -1414,6 +1414,16 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1499,6 +1509,16 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1561,6 +1581,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1639,6 +1669,16 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1701,6 +1741,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1773,6 +1823,16 @@
           },
           "409": {
             "description": "Request conflicts with current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1871,6 +1931,16 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1960,6 +2030,16 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -2022,6 +2102,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2100,6 +2190,16 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -2162,6 +2262,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2255,6 +2365,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2533,6 +2653,16 @@
           },
           "400": {
             "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
             "content": {
               "application/json": {
                 "schema": {
