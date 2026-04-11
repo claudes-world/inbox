@@ -13,6 +13,7 @@
 import type { Page, Route } from "@playwright/test";
 import type { z } from "zod";
 import {
+  analyticsOverviewResponseSchema,
   listResponseSchema,
   readResponseSchema,
   sentListResponseSchema,
@@ -257,6 +258,24 @@ export const sentMutationResponseBody = {
   visibility_state: "hidden",
 };
 
+export const analyticsOverviewResponse = {
+  window: "week",
+  window_start_ts: NOW_MS - 7 * 24 * 60 * 60 * 1000,
+  window_end_ts: NOW_MS,
+  inbox_count: 2,
+  sent_count: 2,
+  response_rate: 0.5,
+  active_conversations: 2,
+  top_senders: [
+    { address: "pm-alpha@vps-1", count: 1 },
+    { address: "eng-manager@vps-1", count: 1 },
+  ],
+  top_recipients: [
+    { address: "eng-leads@lists", count: 1 },
+    { address: "ceo@org", count: 1 },
+  ],
+};
+
 export const replyResponseBody = {
   ok: true,
   message_id: "msg_reply_001",
@@ -346,6 +365,11 @@ export async function mockApi(page: Page) {
 
   // Reply
   await page.route(/\/api\/reply\//, (route) => json(route, replyResponseBody));
+
+  // Analytics overview (WorkflowDashboardScreen)
+  await page.route(/\/api\/analytics\/overview/, (route) =>
+    json(route, analyticsOverviewResponse),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +416,11 @@ function validateFixtures(): void {
     "sentMutationResponseBody",
   );
   validateFixture(replyResponseSchema, replyResponseBody, "replyResponseBody");
+  validateFixture(
+    analyticsOverviewResponseSchema,
+    analyticsOverviewResponse,
+    "analyticsOverviewResponse",
+  );
 }
 
 validateFixtures();

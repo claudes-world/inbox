@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Port is parameterized via `PLAYWRIGHT_PORT` so parallel git worktrees
+// of this repo can run E2E in isolation without colliding on the same
+// Vite dev server. Default matches the historical 58850 binding.
+const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 58850);
+const BASE_URL = `http://localhost:${PORT}/app/`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -10,7 +16,7 @@ export default defineConfig({
   timeout: 30_000,
 
   use: {
-    baseURL: "http://localhost:58850/app/",
+    baseURL: BASE_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -23,8 +29,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:58850/app/",
+    command: `pnpm exec vite --port ${PORT}`,
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },
