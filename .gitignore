@@ -12,3 +12,7 @@ package-lock.json
 playwright-report/
 test-results/
 .vite/
+
+# Coverage reports
+coverage/
+*.lcov
