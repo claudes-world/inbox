@@ -1284,6 +1284,94 @@
           "returned_count"
         ],
         "description": "Result of GET /api/events — delivery event history"
+      },
+      "AnalyticsTopEntry": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^@]+@[^@]+$"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "address",
+          "count"
+        ],
+        "description": "A single top-N entry in the analytics overview: an address and its associated message count."
+      },
+      "AnalyticsOverviewResponse": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "all"
+            ]
+          },
+          "window_start_ts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "window_end_ts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inbox_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Messages received in window"
+          },
+          "sent_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Messages sent in window"
+          },
+          "response_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Fraction of inbox messages that got a reply from the user"
+          },
+          "active_conversations": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Unique conversation_ids with activity in window"
+          },
+          "top_senders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsTopEntry"
+            },
+            "description": "Top addresses that sent TO this user"
+          },
+          "top_recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsTopEntry"
+            },
+            "description": "Top addresses this user sent TO"
+          }
+        },
+        "required": [
+          "window",
+          "window_start_ts",
+          "window_end_ts",
+          "inbox_count",
+          "sent_count",
+          "response_rate",
+          "active_conversations",
+          "top_senders",
+          "top_recipients"
+        ],
+        "description": "Message volume, engagement, and relationship metrics for a time window"
       }
     },
     "parameters": {}
@@ -2653,6 +2741,93 @@
           },
           "400": {
             "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/overview": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Get message volume and engagement analytics for a time window",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "all"
+              ],
+              "default": "week"
+            },
+            "required": false,
+            "name": "window",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsOverviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
             "content": {
               "application/json": {
                 "schema": {

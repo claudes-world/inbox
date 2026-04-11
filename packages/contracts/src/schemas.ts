@@ -626,6 +626,80 @@ export const eventsQuerySchema = z
   });
 
 // ---------------------------------------------------------------------------
+// Analytics overview (workflow dashboard)
+// ---------------------------------------------------------------------------
+//
+// Server-side aggregation for the WorkflowDashboardScreen. Replaces the
+// UI's prior client-side aggregation over /api/inbox + /api/sent with a
+// single DB-backed query. Windows are relative to the server clock at
+// request time.
+
+export const analyticsTimeWindowSchema = z.enum([
+  "day",
+  "week",
+  "month",
+  "all",
+]);
+
+export const analyticsTopEntrySchema = z
+  .object({
+    address: addressStr,
+    count: z.number().int().nonnegative(),
+  })
+  .openapi("AnalyticsTopEntry", {
+    description:
+      "A single top-N entry in the analytics overview: an address and its associated message count.",
+  });
+
+export const analyticsOverviewResponseSchema = z
+  .object({
+    window: analyticsTimeWindowSchema,
+    window_start_ts: timestampMs,
+    window_end_ts: timestampMs,
+    inbox_count: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe("Messages received in window"),
+    sent_count: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe("Messages sent in window"),
+    response_rate: z
+      .number()
+      .min(0)
+      .max(1)
+      .describe(
+        "Fraction of inbox messages that got a reply from the user"
+      ),
+    active_conversations: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe("Unique conversation_ids with activity in window"),
+    top_senders: z
+      .array(analyticsTopEntrySchema)
+      .describe("Top addresses that sent TO this user"),
+    top_recipients: z
+      .array(analyticsTopEntrySchema)
+      .describe("Top addresses this user sent TO"),
+  })
+  .openapi("AnalyticsOverviewResponse", {
+    description:
+      "Message volume, engagement, and relationship metrics for a time window",
+  });
+
+export const analyticsOverviewQuerySchema = z
+  .object({
+    window: analyticsTimeWindowSchema.default("week"),
+  })
+  .openapi("AnalyticsOverviewQuery", {
+    description:
+      "Query parameters for GET /api/analytics/overview. `window` defaults to `week` when omitted.",
+  });
+
+// ---------------------------------------------------------------------------
 // Shared HTTP error response schema (DA amendment 3)
 // ---------------------------------------------------------------------------
 //
