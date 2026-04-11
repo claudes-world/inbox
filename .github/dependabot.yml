@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"  # pnpm uses the npm ecosystem in dependabot
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    groups:
+      typescript:
+        patterns: ["typescript", "@types/*", "tsx"]
+      vitest-and-playwright:
+        patterns: ["vitest", "@vitest/*", "@playwright/*", "playwright"]
+      react:
+        patterns: ["react", "react-dom", "@types/react*"]
+      hono:
+        patterns: ["hono", "@hono/*"]
+      zod-and-contracts:
+        patterns: ["zod", "@asteasolutions/zod-to-openapi"]
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
