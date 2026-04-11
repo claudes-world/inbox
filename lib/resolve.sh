@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/resolve.sh — Resolution engine: actor, inbox, sent, thread, list, reply-all resolvers.
 # This is THE shared resolver — send, reply, read, thread ALL call through it.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/db.sh — SQLite connection, initialization, query, and transaction helpers.
 # All functions use $INBOX_DB as the database path.
 
@@ -25,7 +26,12 @@ db_init() {
   table_count=$(sqlite3 "$INBOX_DB" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='addresses';")
   if [[ "$table_count" -eq 0 ]]; then
     # Apply schema — PRAGMAs in the schema file are idempotent (also set above per-connection)
-    local schema_file="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/schema/001-init.sql"
+    local script_dir schema_file
+    script_dir="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+    schema_file="${INBOX_SHARE_DIR:-$script_dir/share/inbox}/schema/001-init.sql"
+    if [[ ! -f "$schema_file" ]]; then
+      schema_file="$script_dir/schema/001-init.sql"
+    fi
     if [[ ! -f "$schema_file" ]]; then
       echo "error: schema file not found: $schema_file" >&2
       return 1

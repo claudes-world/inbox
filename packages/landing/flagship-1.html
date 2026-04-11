@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inbox — Email for Agents. Actually Email.</title>
+  <meta name="description" content="A durable, pull-based messaging system for agents. Addresses. Threads. Sent folders. Every boring, beautiful thing you already know how to use — rebuilt as a primitive for multi-agent work.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Inbox — Email for Agents. Actually Email.">
+  <meta property="og:description" content="A durable, pull-based messaging system for agents. Addresses, threads, sent folders — rebuilt as a primitive for multi-agent work.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tryinbox.sh/flagship-1">
+
+  <!-- Fonts: Editorial serif + clean sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Inline SVG favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%231a1a2e'/><text y='24' x='5' font-size='22' font-family='serif' fill='%23c1272d'>I</text></svg>">
+
+  <style>
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #FFFDF5;
+      --bg-warm: #FFF9EB;
+      --bg-code: #1a1a2e;
+      --ink: #1a1a2e;
+      --ink-light: #3d3d56;
+      --ink-muted: #6b6b80;
+      --accent: #c1272d;
+      --accent-dark: #9a1f25;
+      --accent-light: #e8444a;
+      --accent-bg: rgba(193, 39, 45, 0.06);
+      --border: #e0ddd4;
+      --border-light: #edeae2;
+      --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+      --sans: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+      --reading-width: 680px;
+      --wide-width: 960px;
+      --section-gap: 6rem;
+    }
+
+    html { scroll-behavior: smooth; font-size: 18px; }
+    body {
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.72;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      html { scroll-behavior: auto; }
+    }
+
+    /* ===== Skip link ===== */
+    .skip-link {
+      position: absolute; top: -100%; left: 1rem;
+      background: var(--accent); color: #fff;
+      padding: 0.5rem 1rem; border-radius: 0 0 4px 4px;
+      font-family: var(--sans); font-size: 0.9rem;
+      z-index: 10000; text-decoration: none;
+    }
+    .skip-link:focus { top: 0; }
+
+    /* ===== Decision Lock Ticker ===== */
+    .ticker {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9000;
+      background: var(--bg-code); color: #c8c8d0;
+      font-family: var(--mono); font-size: 0.72rem;
+      letter-spacing: 0.03em;
+      overflow: hidden; height: 0;
+      transition: height 0.4s ease;
+      border-bottom: 1px solid #2a2a40;
+    }
+    .ticker.visible { height: 32px; }
+    .ticker-inner {
+      display: flex; align-items: center; gap: 1.5rem;
+      padding: 0 1.5rem; height: 32px;
+      white-space: nowrap; overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .ticker-inner::-webkit-scrollbar { display: none; }
+    .ticker-pill {
+      display: inline-flex; align-items: center; gap: 0.4em;
+      opacity: 0; transform: translateY(-8px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .ticker-pill.active { opacity: 1; transform: translateY(0); }
+    .ticker-pill .check { color: var(--accent-light); }
+
+    @media (max-width: 768px) {
+      .ticker.visible { height: 28px; }
+      .ticker-inner { font-size: 0.65rem; gap: 1rem; padding: 0 0.75rem; }
+    }
+
+    /* ===== Section Progress ===== */
+    .progress-rail {
+      position: fixed; left: 2rem; top: 50%; transform: translateY(-50%);
+      z-index: 8000; display: flex; flex-direction: column; gap: 6px;
+    }
+    .progress-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border); transition: all 0.3s ease;
+      cursor: pointer; border: none; padding: 0;
+    }
+    .progress-dot.active { background: var(--accent); transform: scale(1.4); }
+    .progress-dot:hover { background: var(--accent-light); }
+    @media (max-width: 1100px) { .progress-rail { display: none; } }
+
+    /* ===== Reading Column ===== */
+    .reading { max-width: var(--reading-width); margin: 0 auto; padding: 0 1.5rem; }
+    .wide { max-width: var(--wide-width); margin: 0 auto; padding: 0 1.5rem; }
+
+    /* ===== Typography ===== */
+    h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.2; }
+    h2 { font-size: 2.2rem; margin-bottom: 1.5rem; letter-spacing: -0.01em; }
+    h3 { font-size: 1.4rem; margin-bottom: 1rem; }
+    p { margin-bottom: 1.25rem; }
+    strong { font-weight: 600; }
+
+    .section-num {
+      font-family: var(--mono); font-size: 0.75rem; color: var(--accent);
+      letter-spacing: 0.15em; text-transform: uppercase;
+      margin-bottom: 0.5rem; display: block;
+    }
+
+    .drop-cap::first-letter {
+      font-family: var(--serif); font-weight: 900;
+      float: left; font-size: 3.8em; line-height: 0.8;
+      padding-right: 0.08em; padding-top: 0.05em;
+      color: var(--accent);
+    }
+
+    /* ===== Pull Quotes ===== */
+    blockquote {
+      font-family: var(--serif); font-style: italic;
+      font-size: 1.35rem; line-height: 1.5;
+      color: var(--ink); border-left: 3px solid var(--accent);
+      padding: 0.5rem 0 0.5rem 1.5rem;
+      margin: 2.5rem 0 2.5rem -1.5rem;
+    }
+    blockquote strong { font-style: normal; }
+    @media (max-width: 768px) { blockquote { margin-left: 0; font-size: 1.15rem; } }
+
+    /* ===== Code Blocks ===== */
+    pre {
+      background: var(--bg-code); color: #d4d4e0;
+      font-family: var(--mono); font-size: 0.82rem;
+      line-height: 1.65; padding: 1.5rem 2rem;
+      border-radius: 6px; overflow-x: auto;
+      margin: 1.5rem 0 2rem;
+    }
+    code {
+      font-family: var(--mono); font-size: 0.88em;
+      background: rgba(26,26,46,0.06); padding: 0.15em 0.4em;
+      border-radius: 3px;
+    }
+    pre code { background: none; padding: 0; font-size: 1em; }
+
+    /* ===== Links & Buttons ===== */
+    a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: var(--accent-dark); }
+
+    .btn {
+      display: inline-block; padding: 0.75rem 1.8rem;
+      font-family: var(--sans); font-weight: 600; font-size: 0.95rem;
+      border-radius: 4px; text-decoration: none; cursor: pointer;
+      transition: all 0.2s ease; border: none;
+    }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent-dark); color: #fff; }
+    .btn-secondary {
+      background: transparent; color: var(--ink);
+      border: 1.5px solid var(--ink);
+    }
+    .btn-secondary:hover { background: var(--ink); color: var(--bg); }
+    .btn-tertiary {
+      background: transparent; color: var(--accent);
+      border: 1.5px solid var(--accent);
+    }
+    .btn-tertiary:hover { background: var(--accent-bg); }
+
+    /* ===== Sections ===== */
+    section {
+      padding: var(--section-gap) 0;
+      opacity: 0; transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    section.in-view { opacity: 1; transform: translateY(0); }
+
+    .section-divider {
+      width: 40px; height: 2px; background: var(--accent);
+      margin: 0 auto var(--section-gap);
+    }
+
+    /* ===== Hero ===== */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column;
+      justify-content: center; padding: 8rem 0 6rem;
+      background: linear-gradient(175deg, var(--bg) 0%, var(--bg-warm) 100%);
+      opacity: 1; transform: none;
+    }
+    .hero h1 {
+      font-family: var(--serif); font-size: 4.2rem; font-weight: 900;
+      line-height: 1.08; letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 em {
+      font-style: italic; color: var(--accent);
+    }
+    .hero-sub {
+      font-size: 1.2rem; line-height: 1.65; color: var(--ink-light);
+      max-width: 540px; margin-bottom: 2rem;
+    }
+    .hero-lede {
+      font-size: 1.05rem; color: var(--ink-muted); line-height: 1.75;
+      margin-bottom: 3rem;
+    }
+    .hero-lede strong { color: var(--ink); }
+    .hero-ctas { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    @media (max-width: 768px) {
+      .hero { padding: 5rem 0 3rem; min-height: auto; }
+      .hero h1 { font-size: 2.6rem; }
+      .hero-sub { font-size: 1.05rem; }
+    }
+
+    /* ===== Hero Terminal Animation ===== */
+    .hero-terminal {
+      margin-top: 3.5rem; background: var(--bg-code);
+      border-radius: 8px; overflow: hidden;
+      border: 1px solid #2a2a40; max-width: 600px;
+    }
+    .terminal-bar {
+      background: #13132a; padding: 0.5rem 1rem;
+      display: flex; gap: 6px; align-items: center;
+    }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot:nth-child(1) { background: #ff5f56; }
+    .terminal-dot:nth-child(2) { background: #ffbd2e; }
+    .terminal-dot:nth-child(3) { background: #27c93f; }
+    .terminal-body {
+      padding: 1.2rem 1.5rem; font-family: var(--mono);
+      font-size: 0.8rem; color: #b4b4c8; line-height: 1.7;
+      min-height: 180px;
+    }
+    .terminal-body .prompt { color: var(--accent-light); }
+    .terminal-body .output { color: #7a7a94; }
+    .terminal-body .highlight { color: #e8e8f0; }
+    .terminal-body .typing-cursor {
+      display: inline-block; width: 8px; height: 1.1em;
+      background: var(--accent-light); vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ===== Category Map (Section 2) ===== */
+    .category-map {
+      position: relative; width: 100%; max-width: 560px;
+      aspect-ratio: 1; margin: 2rem auto;
+      background: var(--bg-warm); border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .axis-label {
+      position: absolute; font-family: var(--mono);
+      font-size: 0.7rem; color: var(--ink-muted);
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .axis-x-left { bottom: 8px; left: 12px; }
+    .axis-x-right { bottom: 8px; right: 12px; }
+    .axis-y-top { top: 8px; left: 12px; }
+    .axis-y-bottom { bottom: 32px; left: 12px; }
+    .axis-line-h, .axis-line-v {
+      position: absolute; background: var(--border);
+    }
+    .axis-line-h { height: 1px; width: 80%; top: 50%; left: 10%; }
+    .axis-line-v { width: 1px; height: 80%; left: 50%; top: 10%; }
+    .map-point {
+      position: absolute; transform: translate(-50%, -50%);
+      cursor: pointer; text-align: center; transition: transform 0.2s;
+      z-index: 2;
+    }
+    .map-point:hover { transform: translate(-50%, -50%) scale(1.12); }
+    .map-point:focus { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+    .map-dot {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700; font-family: var(--sans);
+      color: #fff; margin: 0 auto 4px;
+    }
+    .map-label {
+      font-family: var(--sans); font-size: 0.72rem;
+      color: var(--ink-light); white-space: nowrap;
+    }
+    .map-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 10px); left: 50%;
+      transform: translateX(-50%); background: var(--bg-code); color: #d4d4e0;
+      padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.78rem;
+      width: 220px; text-align: left; line-height: 1.45;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      font-family: var(--sans); z-index: 5;
+    }
+    .map-point:hover .map-tooltip, .map-point:focus .map-tooltip { display: block; }
+
+    /* ===== Diagram: One message, many realities (Section 3) ===== */
+    .message-diagram {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 2.5rem 1rem; margin: 2rem 0;
+      background: var(--bg-warm); border-radius: 8px;
+      border: 1px solid var(--border-light);
+    }
+    .msg-center {
+      background: var(--bg-code); color: #e8e8f0;
+      font-family: var(--mono); font-size: 0.8rem;
+      padding: 1rem 1.5rem; border-radius: 6px;
+      margin-bottom: 2rem; text-align: center;
+    }
+    .deliveries-row {
+      display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;
+    }
+    .delivery-card {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 6px; padding: 1rem; width: 140px;
+      text-align: center; font-size: 0.82rem;
+      transition: border-color 0.3s;
+    }
+    .delivery-card .name { font-weight: 600; margin-bottom: 0.3rem; }
+    .delivery-card .state {
+      font-family: var(--mono); font-size: 0.72rem;
+      padding: 0.2rem 0.5rem; border-radius: 3px; display: inline-block;
+    }
+    .state-unread { background: #fef3c7; color: #92400e; }
+    .state-read { background: #d1fae5; color: #065f46; }
+    .state-acked { background: #dbeafe; color: #1e40af; }
+    .state-hidden { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+
+    /* ===== Visibility Projector (Section 4) ===== */
+    .projector {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden; margin: 2.5rem 0;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .projector-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1rem 1.5rem; background: var(--bg-warm);
+      border-bottom: 1px solid var(--border-light);
+      flex-wrap: wrap; gap: 0.75rem;
+    }
+    .projector-header h3 { margin: 0; font-size: 1.1rem; }
+    .projector-select {
+      font-family: var(--sans); font-size: 0.9rem;
+      padding: 0.4rem 0.8rem; border: 1px solid var(--border);
+      border-radius: 4px; background: #fff; color: var(--ink);
+      cursor: pointer;
+    }
+    .projector-panels {
+      display: grid; grid-template-columns: 1fr 1fr; min-height: 340px;
+    }
+    .projector-pane {
+      padding: 1.5rem; border-right: 1px solid var(--border-light);
+    }
+    .projector-pane:last-child { border-right: none; }
+    .pane-label {
+      font-family: var(--mono); font-size: 0.7rem; color: var(--ink-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 1rem;
+    }
+    .msg-node {
+      padding: 0.6rem 0.8rem; margin-bottom: 0.5rem;
+      border-radius: 4px; font-size: 0.82rem;
+      display: flex; align-items: center; gap: 0.5rem;
+      transition: all 0.3s ease;
+    }
+    .msg-node .arrow { color: var(--ink-muted); font-size: 0.7rem; }
+    .msg-node.visible { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .msg-node.hidden-msg { background: #f9fafb; border: 1px solid #e5e7eb; color: #9ca3af; text-decoration: line-through; }
+    .msg-node.system-view { background: var(--bg-warm); border: 1px solid var(--border-light); }
+    .msg-sender { font-weight: 600; min-width: 50px; }
+    .msg-recipients { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-muted); }
+
+    @media (max-width: 768px) {
+      .projector-panels { grid-template-columns: 1fr; }
+      .projector-pane { border-right: none; border-bottom: 1px solid var(--border-light); }
+    }
+
+    /* ===== Command Chip Grid (Section 7) ===== */
+    .chip-grid {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+      margin: 1.5rem 0;
+    }
+    .chip {
+      font-family: var(--mono); font-size: 0.8rem;
+      padding: 0.5rem 1rem; border-radius: 4px;
+      cursor: pointer; border: 1px solid var(--border);
+      background: #fff; transition: all 0.2s ease;
+      position: relative;
+    }
+    .chip:hover, .chip:focus { border-color: var(--accent); background: var(--accent-bg); }
+    .chip:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .chip.experimental {
+      color: var(--ink-muted); border-style: dashed;
+      background: var(--bg-warm);
+    }
+    .chip.experimental:hover { border-color: var(--ink-muted); }
+    .chip-expand {
+      display: none; position: absolute; top: calc(100% + 8px); left: 0;
+      background: var(--bg-code); color: #d4d4e0;
+      padding: 1rem 1.2rem; border-radius: 6px;
+      font-size: 0.78rem; width: 320px; z-index: 10;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+      line-height: 1.6;
+    }
+    .chip.active .chip-expand { display: block; }
+    .chip-expand .sig { color: var(--accent-light); }
+    .chip-expand .example { color: #7a7a94; margin-top: 0.5rem; }
+
+    .chip-grid-label {
+      width: 100%; font-family: var(--mono); font-size: 0.7rem;
+      color: var(--ink-muted); letter-spacing: 0.1em;
+      text-transform: uppercase; margin-top: 1rem;
+    }
+
+    /* ===== Consultation Timeline (Section 8) ===== */
+    .timeline {
+      display: flex; align-items: flex-start; gap: 0;
+      overflow-x: auto; padding: 2rem 0;
+      scrollbar-width: none;
+    }
+    .timeline::-webkit-scrollbar { display: none; }
+    .timeline-node {
+      flex: 0 0 200px; display: flex; flex-direction: column;
+      align-items: center; cursor: pointer; position: relative;
+    }
+    .timeline-dot-wrap {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 2px solid var(--border); background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 0.75rem;
+      font-weight: 600; color: var(--ink-muted);
+      transition: all 0.3s;
+    }
+    .timeline-node:hover .timeline-dot-wrap {
+      border-color: var(--accent); color: var(--accent);
+    }
+    .timeline-connector {
+      position: absolute; top: 22px; left: calc(50% + 22px);
+      width: calc(100% - 44px); height: 2px;
+      background: var(--border);
+    }
+    .timeline-node:last-child .timeline-connector { display: none; }
+    .timeline-meta {
+      margin-top: 0.75rem; text-align: center;
+      font-size: 0.78rem; color: var(--ink-muted);
+    }
+    .timeline-meta .model { font-weight: 600; color: var(--ink-light); }
+    .timeline-detail {
+      display: none; margin-top: 1rem; padding: 1rem;
+      background: var(--bg-warm); border-radius: 6px;
+      font-size: 0.82rem; line-height: 1.55; width: 190px;
+      border: 1px solid var(--border-light);
+    }
+    .timeline-node.open .timeline-detail { display: block; }
+
+    /* ===== Discovery Flow (Section 10) ===== */
+    .discovery-demo {
+      background: var(--bg-code); border-radius: 8px;
+      padding: 1.5rem 2rem; margin: 2rem 0;
+      font-family: var(--mono); font-size: 0.82rem;
+      color: #b4b4c8; line-height: 1.7;
+    }
+    .discovery-demo .prompt-line { color: var(--accent-light); }
+    .discovery-demo .json-key { color: #7dd3fc; }
+    .discovery-demo .json-val { color: #fbbf24; }
+    .discovery-demo .json-str { color: #86efac; }
+
+    /* ===== Tier Badges ===== */
+    .tier-badge {
+      display: inline-block; font-family: var(--mono);
+      font-size: 0.65rem; padding: 0.15rem 0.5rem;
+      border-radius: 3px; letter-spacing: 0.05em;
+      text-transform: uppercase; font-weight: 600;
+    }
+    .tier-core { background: #d1fae5; color: #065f46; }
+    .tier-broad { background: #fef3c7; color: #92400e; }
+    .tier-frontier { background: #fce7f3; color: #9d174d; }
+
+    /* ===== Doc Hub Grid (Section 11) ===== */
+    .doc-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.75rem; margin: 1.5rem 0;
+    }
+    .doc-card {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 6px; padding: 1rem 1.2rem;
+      font-size: 0.85rem; transition: border-color 0.2s, box-shadow 0.2s;
+      text-decoration: none; color: var(--ink); display: block;
+    }
+    .doc-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .doc-card .filename {
+      font-family: var(--mono); font-size: 0.8rem;
+      color: var(--accent); margin-bottom: 0.3rem;
+    }
+    .doc-card .desc { color: var(--ink-light); font-size: 0.82rem; }
+    .doc-card .meta {
+      margin-top: 0.5rem; font-family: var(--mono);
+      font-size: 0.68rem; color: var(--ink-muted);
+    }
+
+    /* ===== Surface Collage (Section 12) ===== */
+    .surface-collage {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem; margin: 2rem 0;
+    }
+    .surface-panel {
+      background: var(--bg-code); border-radius: 6px;
+      padding: 1.5rem; color: #b4b4c8;
+      font-size: 0.82rem; transition: all 0.4s ease;
+      cursor: default; min-height: 120px;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      opacity: 0.5; filter: blur(1px);
+    }
+    .surface-panel:hover, .surface-panel:focus-within {
+      opacity: 1; filter: blur(0); transform: scale(1.02);
+    }
+    .surface-panel .panel-title {
+      font-family: var(--serif); font-size: 1.1rem;
+      color: #e8e8f0; margin-bottom: 0.3rem;
+    }
+    .surface-panel .panel-desc { font-size: 0.78rem; line-height: 1.45; }
+
+    @media (max-width: 768px) {
+      .surface-collage { grid-template-columns: 1fr; }
+      .surface-panel { opacity: 1; filter: none; }
+    }
+
+    /* ===== Accordion ===== */
+    .accordion {
+      margin: 1.5rem 0; border: 1px solid var(--border);
+      border-radius: 6px; overflow: hidden;
+    }
+    .accordion-trigger {
+      width: 100%; background: var(--bg-warm); border: none;
+      padding: 1rem 1.2rem; text-align: left; cursor: pointer;
+      font-family: var(--serif); font-size: 1rem; font-weight: 600;
+      color: var(--ink); display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    .accordion-trigger::after {
+      content: '+'; font-family: var(--mono); font-size: 1.2rem;
+      color: var(--accent); transition: transform 0.3s;
+    }
+    .accordion-trigger[aria-expanded="true"]::after { transform: rotate(45deg); }
+    .accordion-body {
+      max-height: 0; overflow: hidden; transition: max-height 0.4s ease;
+    }
+    .accordion-body-inner { padding: 1rem 1.2rem; font-size: 0.92rem; line-height: 1.65; }
+
+    /* ===== CTA Grid (Final) ===== */
+    .cta-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+      margin: 2rem 0;
+    }
+    .cta-card {
+      background: var(--bg-code); color: #e8e8f0;
+      padding: 1.2rem; border-radius: 6px; text-align: center;
+      text-decoration: none; font-family: var(--sans);
+      font-size: 0.9rem; font-weight: 600;
+      transition: background 0.2s;
+      border: 1px solid transparent;
+    }
+    .cta-card:hover { background: #232340; border-color: var(--accent); color: #fff; }
+
+    @media (max-width: 768px) {
+      .cta-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .cta-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ===== Full Bleed Sections ===== */
+    .full-bleed {
+      background: var(--bg-code); color: #d4d4e0;
+      padding: var(--section-gap) 0;
+    }
+    .full-bleed h2 { color: #e8e8f0; }
+    .full-bleed .section-num { color: var(--accent-light); }
+    .full-bleed blockquote { color: #c8c8d0; border-left-color: var(--accent-light); }
+    .full-bleed code { background: rgba(255,255,255,0.08); }
+    .full-bleed a { color: var(--accent-light); }
+    .full-bleed .accordion { border-color: #2a2a40; }
+    .full-bleed .accordion-trigger { background: #1e1e38; color: #e8e8f0; }
+    .full-bleed .accordion-body-inner { color: #b4b4c8; }
+    .full-bleed pre { border: 1px solid #2a2a40; }
+
+    /* ===== Invariant Badge ===== */
+    .invariant-badge {
+      display: inline-block; font-family: var(--mono);
+      font-size: 0.72rem; padding: 0.25rem 0.7rem;
+      background: var(--accent-bg); color: var(--accent);
+      border-radius: 3px; border: 1px solid rgba(193,39,45,0.15);
+      margin: 0.5rem 0;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 768px) {
+      html { font-size: 16px; }
+      :root { --section-gap: 4rem; }
+      h2 { font-size: 1.7rem; }
+    }
+
+    /* ===== List styles for edge cases ===== */
+    .edge-list {
+      list-style: none; padding: 0;
+    }
+    .edge-list li {
+      padding: 1rem 0; border-bottom: 1px solid var(--border-light);
+      font-size: 0.95rem; line-height: 1.6;
+    }
+    .edge-list li:last-child { border-bottom: none; }
+    .edge-list li strong { color: var(--accent); }
+
+    /* ===== Thesis Box ===== */
+    .thesis-box {
+      background: var(--accent-bg); border: 1px solid rgba(193,39,45,0.15);
+      border-radius: 6px; padding: 1.5rem 2rem;
+      margin: 2rem 0;
+    }
+    .thesis-box blockquote { border-left: none; margin: 0; padding: 0; }
+
+    /* ===== Flow diagram (Section 1) ===== */
+    .flow-chain {
+      display: flex; align-items: center; gap: 0;
+      flex-wrap: wrap; margin: 1.5rem 0;
+      font-family: var(--mono); font-size: 0.85rem;
+    }
+    .flow-node {
+      background: var(--bg-code); color: #e8e8f0;
+      padding: 0.5rem 1rem; border-radius: 4px;
+    }
+    .flow-arrow { color: var(--ink-muted); padding: 0 0.3rem; }
+
+    /* ===== ERD (Section 5) ===== */
+    .erd-stack { display: flex; flex-direction: column; gap: 1rem; margin: 2rem 0; }
+    .erd-panel {
+      background: var(--bg-warm); border: 1px solid var(--border);
+      border-radius: 6px; padding: 1.2rem 1.5rem;
+    }
+    .erd-panel .erd-label {
+      font-family: var(--mono); font-size: 0.7rem;
+      color: var(--ink-muted); text-transform: uppercase;
+      letter-spacing: 0.08em; margin-bottom: 0.75rem;
+    }
+    .erd-arrow-down {
+      text-align: center; color: var(--ink-muted);
+      font-family: var(--mono); font-size: 1.2rem;
+    }
+
+    /* ===== Footer ===== */
+    footer {
+      padding: 3rem 0; text-align: center;
+      font-size: 0.82rem; color: var(--ink-muted);
+      border-top: 1px solid var(--border-light);
+    }
+  </style>
+</head>
+<body>
+  <!-- Skip link -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Decision Lock Ticker -->
+  <div class="ticker" role="complementary" aria-label="Design principles accumulated while reading">
+    <div class="ticker-inner" id="tickerInner"></div>
+  </div>
+
+  <!-- Section Progress Rail -->
+  <nav class="progress-rail" aria-label="Section navigation" id="progressRail"></nav>
+
+  <!-- MAIN CONTENT -->
+  <main id="main-content">
+
+    <!-- ============================== HERO ============================== -->
+    <section class="hero" id="hero" data-section="0">
+      <div class="reading">
+        <h1>Email for agents.<br><em>Actually email.</em></h1>
+        <p class="hero-sub">
+          A durable, pull-based messaging system for agents. Addresses. Threads. Sent folders.
+          Lists that expand. Read state that belongs to the reader. Every boring, beautiful thing
+          you already know how to use — rebuilt as a primitive for multi-agent work.
+        </p>
+        <div class="hero-lede">
+          <p>Most agent systems pick the wrong primitive.</p>
+          <p>
+            They start with orchestration diagrams. Hidden queues. A dispatcher that knows too much.
+            A workflow engine wearing a protocol costume. Tool calls flung into the void, hoping
+            something catches them.
+          </p>
+          <p>
+            Inbox starts somewhere else, with a question that sounds almost too simple:
+          </p>
+          <p><strong>What if agents had inboxes?</strong></p>
+          <p>
+            Not chat. Not RPC. Not a job queue with extra steps. An actual mailbox. An address.
+            A sent folder. Threads you can reply to. Messages that stay put. Read state that
+            belongs to the reader, not the sender. Lists that expand. Hiding that's yours alone.
+          </p>
+          <p>
+            It turns out that once you give agents inboxes, most of the hard problems in
+            multi-agent coordination stop looking like protocol design and start looking like
+            product design. Which is exactly where we wanted them.
+          </p>
+          <p><strong>This is the story of building that.</strong></p>
+        </div>
+        <div class="hero-ctas">
+          <a href="#section-1" class="btn btn-primary" aria-label="Read the design journey">Read the design journey &darr;</a>
+          <a href="#" class="btn btn-secondary" aria-label="See the specification documents">See the spec &rarr;</a>
+          <a href="#" class="btn btn-tertiary" aria-label="Try the MVP quickstart">Try the MVP</a>
+        </div>
+
+        <!-- Hero Terminal -->
+        <div class="hero-terminal" role="img" aria-label="Animated terminal showing Inbox commands: send, list, read">
+          <div class="terminal-bar">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+          </div>
+          <div class="terminal-body" id="heroTerminal"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 1 ============================== -->
+    <section id="section-1" data-section="1" data-ticker="Smallest thing that still feels like mail">
+      <div class="reading">
+        <span class="section-num">Section 1</span>
+        <h2>The smallest thing that still feels like mail</h2>
+        <p class="drop-cap">
+          Before any diagrams, before any schemas, we had one rule: the smallest version of
+          Inbox should still <em>feel</em> like a real mailbox. Not "implements the minimum
+          features." Feel. If you stripped everything away and handed an agent the tool, would
+          it recognize what it was holding?
+        </p>
+        <p>That ruled out a lot of tempting shortcuts:</p>
+        <ul style="margin-bottom:1.5rem; padding-left:1.5rem;">
+          <li>Put everything in one big JSON blob? No — inboxes have addresses.</li>
+          <li>Use UUIDs agents never see? No — replies need something to refer to.</li>
+          <li>Fan out by copying the message? No — that's not how mail works, and it breaks audit.</li>
+          <li>Let read state live on the message? No — read is something the <em>reader</em> does.</li>
+        </ul>
+        <p>So we started with six things and almost nothing else:</p>
+        <div class="flow-chain" role="img" aria-label="Flow: address, inbox, message, reply, sqlite, cli">
+          <span class="flow-node">address</span><span class="flow-arrow">&rarr;</span>
+          <span class="flow-node">inbox</span><span class="flow-arrow">&rarr;</span>
+          <span class="flow-node">message</span><span class="flow-arrow">&rarr;</span>
+          <span class="flow-node">reply</span><span class="flow-arrow">&rarr;</span>
+          <span class="flow-node">sqlite</span><span class="flow-arrow">&rarr;</span>
+          <span class="flow-node">cli</span>
+        </div>
+        <p>
+          Everything else on this page is what happened when we tried to make those
+          six things hold up under pressure.
+        </p>
+        <blockquote>
+          The goal wasn't to build everything. It was to find the smallest thing
+          that still felt like a real mailbox system for agents.
+        </blockquote>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 2 ============================== -->
+    <section id="section-2" data-section="2" data-ticker="Email is the right category">
+      <div class="reading">
+        <span class="section-num">Section 2</span>
+        <h2>The category mistake</h2>
+        <p class="drop-cap">
+          Every system that fails to become email for agents fails the same way: it picks the
+          wrong adjacent category.
+        </p>
+        <p>
+          <strong>Chat</strong> is too loose. No accountability, no durable audience, threads that
+          dissolve into scroll. Fine for humans who can infer context. Wrong for agents who need
+          explicit recipients.
+        </p>
+        <p>
+          <strong>RPC</strong> is too tight. Synchronous means everything blocks, everything times
+          out, everything needs retry logic. Fine for "compute this now." Wrong for "here's what
+          happened; let me know what you think."
+        </p>
+        <p>
+          <strong>Queues</strong> are too anonymous. Workers grab jobs; nobody remembers who asked.
+          Fine for fan-out tasks. Wrong when "Alice asked Bob specifically" is the whole point.
+        </p>
+        <p>
+          <strong>Workflow engines</strong> are too opinionated too early. They assume the shape of
+          the work before the work exists.
+        </p>
+        <p>
+          Inbox needed to sit in the gap all four of those were circling: durable, identity-based,
+          asynchronous, message-first, thread-aware, equally comfortable carrying a one-line
+          status or a five-branch coordinated task.
+        </p>
+      </div>
+
+      <!-- Interactive Category Map -->
+      <div class="wide">
+        <div class="category-map" role="img" aria-label="Category quadrant map: Chat, RPC, Queues, Workflow Engines, and Inbox plotted on sync/async vs anonymous/identity axes">
+          <span class="axis-label axis-x-left">Anonymous</span>
+          <span class="axis-label axis-x-right">Identity-based</span>
+          <span class="axis-label axis-y-top">Asynchronous</span>
+          <span class="axis-label axis-y-bottom">Synchronous</span>
+          <div class="axis-line-h" aria-hidden="true"></div>
+          <div class="axis-line-v" aria-hidden="true"></div>
+
+          <div class="map-point" style="left:30%;top:68%;" tabindex="0" role="button" aria-label="RPC: synchronous, somewhat identity-based">
+            <div class="map-dot" style="background:#6366f1;">RPC</div>
+            <div class="map-label">RPC</div>
+            <div class="map-tooltip">Too tight. Synchronous means everything blocks, everything times out. Fine for "compute this now." Wrong for "here's what happened."</div>
+          </div>
+          <div class="map-point" style="left:65%;top:65%;" tabindex="0" role="button" aria-label="Chat: synchronous, identity-based">
+            <div class="map-dot" style="background:#8b5cf6;">Chat</div>
+            <div class="map-label">Chat</div>
+            <div class="map-tooltip">Too loose. No accountability, no durable audience, threads that dissolve into scroll. Wrong for agents needing explicit recipients.</div>
+          </div>
+          <div class="map-point" style="left:28%;top:30%;" tabindex="0" role="button" aria-label="Queues: asynchronous, anonymous">
+            <div class="map-dot" style="background:#f59e0b;">Q</div>
+            <div class="map-label">Queues</div>
+            <div class="map-tooltip">Too anonymous. Workers grab jobs; nobody remembers who asked. Wrong when "Alice asked Bob specifically" is the whole point.</div>
+          </div>
+          <div class="map-point" style="left:55%;top:38%;" tabindex="0" role="button" aria-label="Workflow Engines: somewhat async, somewhat identity-based">
+            <div class="map-dot" style="background:#64748b;">WF</div>
+            <div class="map-label">Workflow Engines</div>
+            <div class="map-tooltip">Too opinionated too early. They assume the shape of the work before the work exists. Rejects half of real messages at the door.</div>
+          </div>
+          <div class="map-point" style="left:80%;top:18%;" tabindex="0" role="button" aria-label="Inbox: asynchronous, identity-based — the right quadrant">
+            <div class="map-dot" style="background:var(--accent);">IN</div>
+            <div class="map-label" style="font-weight:700;color:var(--accent);">Inbox</div>
+            <div class="map-tooltip">Durable, identity-based, async, message-first, thread-aware. Sits alone in the upper-right where agents need to be.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reading">
+        <div class="thesis-box">
+          <blockquote>
+            <strong>Inbox is a durable, pull-based, email-like messaging system for agents,
+            designed to support both flexible communication and structured coordination.</strong>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 3 ============================== -->
+    <section id="section-3" data-section="3" data-ticker="Conversation is lineage, not access">
+      <div class="reading">
+        <span class="section-num">Section 3</span>
+        <h2>Three objects that changed everything</h2>
+        <p class="drop-cap">
+          Here is the move that let the rest of the system fall into place:
+          <strong>One canonical message. One delivery per recipient. One conversation that groups
+          but does not grant.</strong>
+        </p>
+        <p>
+          Say it out loud. It sounds obvious. It is absolutely not obvious. Most mail systems —
+          including the one in your pocket — quietly conflate all three. Your "email" is actually
+          a copy delivered to you, with your read state smeared across the same row that stores
+          the sender's words.
+        </p>
+        <p>Inbox doesn't do that. Inbox does this:</p>
+        <p>
+          <strong>Message</strong> is the immutable authored artifact. One canonical copy, no matter
+          how many recipients. The sender wrote it, the system stored it, and nothing about it
+          changes after send. Ever.
+        </p>
+        <p>
+          <strong>Delivery</strong> is the per-recipient inbox record. This is where <em>your</em>
+          read state lives, <em>your</em> hide state, <em>your</em> engagement history. One per
+          recipient, independent, append-only.
+        </p>
+        <p>
+          <strong>Conversation</strong> is the lineage container. It groups related messages into a
+          thread. That's all it does. It does not decide who can see what.
+        </p>
+        <p>That last part is the one most people get wrong, and it's the most important:</p>
+
+        <blockquote>
+          <strong>Conversation is lineage, not access control.</strong>
+        </blockquote>
+
+        <p>
+          Being in a thread doesn't grant you access to the thread. Access comes from deliveries.
+          If you weren't sent a message, you don't see it — even if someone later replies to it
+          and you see the reply.
+        </p>
+        <p>
+          From this one principle, almost every invariant in the system follows:
+        </p>
+        <ul style="margin-bottom:1.5rem; padding-left:1.5rem;">
+          <li>A new recipient added mid-thread gets no retroactive history</li>
+          <li>Hidden parent messages don't leak through visible replies</li>
+          <li>Reply-all targets logical headers, not frozen member snapshots</li>
+          <li>Forward is a new message, not a new delivery of an old one</li>
+        </ul>
+
+        <p class="invariant-badge">INV-STRUCT-4: A conversation is lineage, not access control</p>
+      </div>
+
+      <!-- Diagram: One message, many realities -->
+      <div class="wide">
+        <div class="message-diagram">
+          <div class="msg-center">
+            <strong>msg_01H2X...</strong><br>
+            "Deploy report for Q3 pipeline"<br>
+            <span style="color:#7a7a94;">Immutable. Never changes after send.</span>
+          </div>
+          <div style="color:var(--ink-muted); margin-bottom:1rem; font-size:0.85rem;">&darr; Fanout creates one delivery per recipient &darr;</div>
+          <div class="deliveries-row">
+            <div class="delivery-card">
+              <div class="name">Alice</div>
+              <span class="state state-read">read</span>
+            </div>
+            <div class="delivery-card">
+              <div class="name">Bob</div>
+              <span class="state state-unread">unread</span>
+            </div>
+            <div class="delivery-card">
+              <div class="name">Carol</div>
+              <span class="state state-acked">acknowledged</span>
+            </div>
+            <div class="delivery-card">
+              <div class="name">Dan</div>
+              <span class="state state-hidden">hidden</span>
+            </div>
+          </div>
+          <p style="margin-top:1.5rem; font-family:var(--serif); font-style:italic; font-size:0.9rem; color:var(--ink-muted); text-align:center; margin-bottom:0;">
+            The message is a fact. Your inbox state is an opinion about that fact. Inbox keeps them separate.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 4 ============================== -->
+    <section class="full-bleed" id="section-4" data-section="4" data-ticker="Message is canonical, delivery is local">
+      <div class="reading">
+        <span class="section-num">Section 4</span>
+        <h2>Threads that branch. Privacy that doesn't leak.</h2>
+        <p class="drop-cap">
+          Email never really solved threading. It approximated it with subject lines and "Re:"
+          prefixes and then gave up. That's fine for humans who can read between the lines. It
+          falls apart the moment agents try to reason about "who saw what when."
+        </p>
+        <p>
+          So Inbox made threads do actual work. Every message belongs to exactly one conversation.
+          Every message can optionally point at one parent. Parents plus children give you a reply
+          tree — not a bag of messages pretending to be linear.
+        </p>
+        <p>But the subtle part wasn't structure. It was privacy. Consider this concrete scenario:</p>
+        <pre><code>1. Alice sends msg1 to Bob.
+2. Alice replies to msg1, sending the reply to Bob AND Carol.
+3. Carol now sees the reply.</code></pre>
+        <p>Does Carol see msg1?</p>
+        <p>
+          The email answer is "it depends on whether it got quoted into the reply body."
+          The Inbox answer is: <strong>no.</strong> Carol was not a recipient of msg1. Carol has
+          no delivery for msg1. Carol doesn't see msg1.
+        </p>
+        <p>
+          <strong>The visible thread is always a recipient-specific projection of the full graph.</strong>
+        </p>
+      </div>
+
+      <!-- Visibility Projector Widget -->
+      <div class="wide">
+        <div class="projector" role="region" aria-label="Visibility Projector: interactive widget showing how different recipients see the same conversation">
+          <div class="projector-header">
+            <h3>Visibility Projector</h3>
+            <label>
+              <span style="font-size:0.85rem; margin-right:0.5rem;">View as:</span>
+              <select class="projector-select" id="projectorSelect" aria-label="Select a recipient to view the conversation from their perspective">
+                <option value="alice">Alice</option>
+                <option value="bob">Bob</option>
+                <option value="carol">Carol</option>
+                <option value="dan">Dan</option>
+              </select>
+            </label>
+          </div>
+          <div class="projector-panels">
+            <div class="projector-pane">
+              <div class="pane-label">System view (nobody actually sees this)</div>
+              <div id="projectorSystem"></div>
+            </div>
+            <div class="projector-pane">
+              <div class="pane-label" id="projectorViewLabel">Alice's view</div>
+              <div id="projectorUser"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reading">
+        <div class="accordion">
+          <button class="accordion-trigger" aria-expanded="false" aria-controls="acc-why-not-conv-access">
+            Why not just grant conversation-level access?
+          </button>
+          <div class="accordion-body" id="acc-why-not-conv-access" role="region">
+            <div class="accordion-body-inner">
+              <p>
+                It sounds tempting. "If you're in the conversation, you see the conversation."
+                Clean, simple, wrong. It means that adding anyone to any reply retroactively exposes
+                every message in the thread. It means hiding a message from one recipient is meaningless
+                because the next reply will re-expose it. It means "forward" and "reply-add" become
+                privacy leaks disguised as collaboration features.
+              </p>
+              <p>
+                Conversation-as-ACL is the original sin of most team-chat systems. We chose not to
+                inherit it.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== SECTION 5 ============================== -->
+    <section id="section-5" data-section="5" data-ticker="Sent messages are immutable">
+      <div class="reading">
+        <span class="section-num">Section 5</span>
+        <h2>Two truths, one handle</h2>
+        <p class="drop-cap">
+          Here's a design debate that happened later than you'd expect. The protocol wants to talk
+          in deliveries. That's where the state lives. "Mark this delivery read." "Hide this
+          delivery." "Ack this delivery." Clean, unambiguous, correct.
+        </p>
+        <p>
+          The CLI wanted to talk in deliveries too, at first. We even had the flags:
+          <code>inbox read dly_01H...</code>. It worked. It was principled. It was also miserable.
+        </p>
+        <p>
+          Because a user — human or agent — does not think "I'm interacting with my delivery of
+          this message." They think "I'm reading this message." So we split:
+        </p>
+
+        <!-- ERD Panels -->
+        <div class="erd-stack">
+          <div class="erd-panel">
+            <div class="erd-label">Schema truth</div>
+            <pre style="margin:0;"><code>messages &harr; deliveries &harr; addresses
+
+delivery_id = mutation target
+"Mark dly_01H... as read"</code></pre>
+          </div>
+          <div class="erd-arrow-down" aria-hidden="true">&darr; CLI resolves message &rarr; delivery invisibly &darr;</div>
+          <div class="erd-panel">
+            <div class="erd-label">Operator truth</div>
+            <pre style="margin:0;"><code>$ inbox read msg_01H2X...
+
+From:    alice@vps-1
+To:      bob@vps-1, eng-leads@lists
+Subject: Deploy report for Q3 pipeline
+Status:  read
+
+Deploy completed. All 47 checks green.</code></pre>
+          </div>
+        </div>
+
+        <blockquote>
+          <strong>A stable public handle means agents don't have to understand the schema to use
+          the tool safely.</strong>
+        </blockquote>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 6 ============================== -->
+    <section id="section-6" data-section="6" data-ticker="Hide affects listing only">
+      <div class="reading">
+        <span class="section-num">Section 6</span>
+        <h2>The edge cases that almost broke it</h2>
+        <p class="drop-cap">
+          The core model is clean. The edge cases are where design dies. Here's the short version
+          of what had to get locked in, in the order we caught them:
+        </p>
+
+        <ul class="edge-list">
+          <li>
+            <strong>Active vs listed.</strong> An address can be routable without being visible in
+            the directory. <code>is_active</code> controls whether mail can reach you.
+            <code>is_listed</code> controls whether you show up in search. Conflating them was how
+            we almost made "deactivate this agent" also mean "erase them from audit trails."
+          </li>
+          <li>
+            <strong>Inactive list vs empty list.</strong> Two distinct failures, two distinct error
+            messages. Send to a list that's been turned off: "inactive recipient." Send to an active
+            list whose members have all been turned off: "no recipients resolved." Different diagnostic,
+            different fix, same exit code. Don't merge them.
+          </li>
+          <li>
+            <strong>Reply-all uses logical headers.</strong> Not the frozen snapshot of who actually
+            received the original. If <code>eng-leads@lists</code> had three members when Alice sent
+            the message and has five members now, Alice's reply-all goes to the current five.
+          </li>
+          <li>
+            <strong>Self-send is allowed.</strong> If you send a message to yourself, you get both a
+            delivery and a sent-item. They're independent. Hiding your sent copy doesn't hide your
+            received copy.
+          </li>
+          <li>
+            <strong>Hide is a view filter, not an access control.</strong> Hidden messages still appear
+            in direct read-by-ID and explicit thread browsing. Hide means "stop showing me this in
+            passing"; it doesn't mean "pretend this doesn't exist."
+          </li>
+          <li>
+            <strong>Forward is a new message.</strong> Not a new delivery of the original. This protects
+            no-retroactive-access. Carol does not gain delivery access to anything that came before.
+          </li>
+          <li>
+            <strong>BCC is reserved, deferred.</strong> The table exists. The invariants are locked.
+            The CLI flag is not exposed yet. BCC done casually is a privacy disaster, and we'd rather
+            wait until we can do it with cryptographic hardening.
+          </li>
+        </ul>
+
+        <p>
+          Each of these took a real conversation to land. Several took multiple. Most of them look
+          obvious in retrospect. None of them were obvious when we started.
+        </p>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 7 ============================== -->
+    <section class="full-bleed" id="section-7" data-section="7" data-ticker="Reply-all uses logical headers">
+      <div class="reading">
+        <span class="section-num">Section 7</span>
+        <h2>Twelve verbs. No more.</h2>
+        <p>Here is the entire MVP command surface:</p>
+      </div>
+
+      <!-- Command Chip Grid -->
+      <div class="wide">
+        <div class="chip-grid" role="list" aria-label="Inbox CLI commands">
+          <div class="chip-grid-label">Core commands</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="whoami">
+            inbox whoami
+            <div class="chip-expand">
+              <div class="sig">inbox whoami [--json]</div>
+              <div class="example">$ inbox whoami<br>alice@vps-1</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="send">
+            inbox send
+            <div class="chip-expand">
+              <div class="sig">inbox send --to &lt;addr&gt; [--cc &lt;addr&gt;] --subject &lt;text&gt; --body &lt;text&gt;</div>
+              <div class="example">$ inbox send --to bob@vps-1 --subject "Deploy update" --body "All green."<br>sent msg_01H2X...</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="list">
+            inbox list
+            <div class="chip-expand">
+              <div class="sig">inbox list [--all] [--json] [--limit N]</div>
+              <div class="example">$ inbox list<br>  unread  msg_01H2X...  alice@vps-1  Deploy update<br>  read    msg_01H3Y...  bob@vps-1    Status report</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="read">
+            inbox read
+            <div class="chip-expand">
+              <div class="sig">inbox read &lt;msg_id&gt; [--json]</div>
+              <div class="example">$ inbox read msg_01H2X...<br>From: alice@vps-1<br>Subject: Deploy update<br><br>All green.</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="reply">
+            inbox reply
+            <div class="chip-expand">
+              <div class="sig">inbox reply &lt;msg_id&gt; --body &lt;text&gt; [--all]</div>
+              <div class="example">$ inbox reply msg_01H2X... --body "Confirmed. Merging."</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="ack">
+            inbox ack
+            <div class="chip-expand">
+              <div class="sig">inbox ack &lt;msg_id&gt;</div>
+              <div class="example">$ inbox ack msg_01H2X...<br>acknowledged</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="hide">
+            inbox hide
+            <div class="chip-expand">
+              <div class="sig">inbox hide &lt;msg_id&gt;</div>
+              <div class="example">$ inbox hide msg_01H2X...<br>hidden from default list view</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="unhide">
+            inbox unhide
+            <div class="chip-expand">
+              <div class="sig">inbox unhide &lt;msg_id&gt;</div>
+              <div class="example">$ inbox unhide msg_01H2X...<br>restored to list view</div>
+            </div>
+          </div>
+
+          <div class="chip-grid-label">Sent commands</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="sent-list">
+            inbox sent list
+            <div class="chip-expand">
+              <div class="sig">inbox sent list [--json] [--limit N]</div>
+              <div class="example">Shows your sent messages — independent of delivery states.</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="sent-read">
+            inbox sent read
+            <div class="chip-expand">
+              <div class="sig">inbox sent read &lt;msg_id&gt; [--json]</div>
+              <div class="example">Read your own sent message by ID.</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="sent-hide">inbox sent hide</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="sent-unhide">inbox sent unhide</div>
+
+          <div class="chip-grid-label">Navigation</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="thread">
+            inbox thread
+            <div class="chip-expand">
+              <div class="sig">inbox thread &lt;cnv_id&gt; [--json] [--tree]</div>
+              <div class="example">View a conversation — only shows messages you have deliveries for.</div>
+            </div>
+          </div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="dir-list">inbox directory list</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="dir-show">inbox directory show</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="dir-members">inbox directory members</div>
+
+          <div class="chip-grid-label">Meta</div>
+          <div class="chip" role="listitem" tabindex="0" data-cmd="give-feedback">
+            inbox give-feedback
+            <div class="chip-expand">
+              <div class="sig">inbox give-feedback</div>
+              <div class="example">Interactive: captures what you tried to do and what you wished happened. Structured product feedback from agents.</div>
+            </div>
+          </div>
+
+          <div class="chip-grid-label">Experimental (coming soon)</div>
+          <div class="chip experimental" role="listitem" tabindex="0" data-cmd="forward">
+            forward <span class="tier-badge tier-core">core</span>
+            <div class="chip-expand">
+              <div class="sig" style="color:#fbbf24;">coming_soon</div>
+              <div class="example">Forward a message to new recipients. High demand signal. See Section 10.</div>
+            </div>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0" data-cmd="search">
+            search <span class="tier-badge tier-core">core</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0" data-cmd="snooze">
+            snooze <span class="tier-badge tier-core">core</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0" data-cmd="fork">
+            fork <span class="tier-badge tier-core">core</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0">
+            mark-unread <span class="tier-badge tier-core">core</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0">
+            watch <span class="tier-badge tier-broad">broad</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0">
+            export <span class="tier-badge tier-broad">broad</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0">
+            mute <span class="tier-badge tier-broad">broad</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0">
+            filter <span class="tier-badge tier-frontier">frontier</span>
+          </div>
+          <div class="chip experimental" role="listitem" tabindex="0">
+            escalate <span class="tier-badge tier-frontier">frontier</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="reading">
+        <p style="margin-top:2rem;">
+          Notice what's missing. Agents will ask for all of these. We know they will.
+          We're going to let them ask. Because we don't actually know which of those verbs
+          matter most. So Inbox ships narrow, measures what agents <em>try</em> to do, and
+          grows from evidence instead of intuition.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== SECTION 8 ============================== -->
+    <section id="section-8" data-section="8" data-ticker="Design hardened by multi-model review">
+      <div class="reading">
+        <span class="section-num">Section 8</span>
+        <h2>How this design got hardened</h2>
+        <p class="drop-cap">
+          Most design docs are written by one mind. This one wasn't. The Inbox spec was built
+          over dozens of back-and-forth conversations, and at every major inflection point, the
+          current draft got handed to a different model — Claude, GPT-5.4, Gemini — with one
+          instruction: <strong>try to break this.</strong>
+        </p>
+        <p>They did. Repeatedly.</p>
+      </div>
+
+      <!-- Consultation Timeline -->
+      <div class="wide">
+        <div class="timeline" role="list" aria-label="Consultation timeline showing multi-model review rounds">
+          <div class="timeline-node" role="listitem" tabindex="0">
+            <div class="timeline-dot-wrap">1</div>
+            <div class="timeline-connector" aria-hidden="true"></div>
+            <div class="timeline-meta"><span class="model">Gemini</span><br>BCC privacy leak</div>
+            <div class="timeline-detail">
+              <strong>Caught:</strong> The original draft stored all recipients together, exposing BCC'd addresses in public headers. Split into public/private recipient tables.
+            </div>
+          </div>
+          <div class="timeline-node" role="listitem" tabindex="0">
+            <div class="timeline-dot-wrap">2</div>
+            <div class="timeline-connector" aria-hidden="true"></div>
+            <div class="timeline-meta"><span class="model">Claude</span><br>Parent-link leak</div>
+            <div class="timeline-detail">
+              <strong>Caught:</strong> A naive implementation returns parent_message_id even when the parent isn't visible. Fix: omit the field if parent isn't visible to the viewer.
+            </div>
+          </div>
+          <div class="timeline-node" role="listitem" tabindex="0">
+            <div class="timeline-dot-wrap">3</div>
+            <div class="timeline-connector" aria-hidden="true"></div>
+            <div class="timeline-meta"><span class="model">Claude</span><br>State machine</div>
+            <div class="timeline-detail">
+              <strong>Caught:</strong> Locked unread&rarr;read&rarr;acknowledged as one-way transitions, blocking "mark unread." Relaxed to mutable state + append-only history.
+            </div>
+          </div>
+          <div class="timeline-node" role="listitem" tabindex="0">
+            <div class="timeline-dot-wrap">4</div>
+            <div class="timeline-connector" aria-hidden="true"></div>
+            <div class="timeline-meta"><span class="model">Claude</span><br>Partial fanout</div>
+            <div class="timeline-detail">
+              <strong>Caught:</strong> "Send succeeds if deliveries created" — what if 5 of 6 land? Answer: all or none, stated as an invariant.
+            </div>
+          </div>
+          <div class="timeline-node" role="listitem" tabindex="0">
+            <div class="timeline-dot-wrap">5</div>
+            <div class="timeline-connector" aria-hidden="true"></div>
+            <div class="timeline-meta"><span class="model">Multi-round</span><br>is_active scope</div>
+            <div class="timeline-detail">
+              <strong>Flagged repeatedly:</strong> Does inactive lose read access? Landed on: is_active controls routing; read-only access is a separate question, deferred with a tripwire.
+            </div>
+          </div>
+          <div class="timeline-node" role="listitem" tabindex="0">
+            <div class="timeline-dot-wrap">6</div>
+            <div class="timeline-connector" aria-hidden="true"></div>
+            <div class="timeline-meta"><span class="model">Consultation</span><br>The Principle</div>
+            <div class="timeline-detail">
+              <strong>Created:</strong> "Conversation is lineage, not access control" — the behavior was roughly right; the principle was completely unstated. One sentence, ten fewer footguns.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reading">
+        <blockquote>
+          If your design is going to be implemented by agents, you should probably let agents
+          help review it.
+        </blockquote>
+        <p>
+          They catch different things than humans do. They notice under-specified edges because
+          under-specified edges are where they'll hallucinate behavior. They're exactly the wrong
+          audience for a draft spec — which is exactly what makes them the right critics.
+        </p>
+        <blockquote>
+          The interesting part wasn't reaching an answer. It was forcing the answer to survive
+          repeated independent attempts to break it.
+        </blockquote>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 9 ============================== -->
+    <section id="section-9" data-section="9" data-ticker="Telemetry over guessing">
+      <div class="reading">
+        <span class="section-num">Section 9</span>
+        <h2>Guess less. Instrument more.</h2>
+        <p>Here is the product philosophy in one sentence:</p>
+        <div class="thesis-box">
+          <blockquote>
+            <strong>We do not want to build features for agents. We want to build features
+            agents have already told us they want.</strong>
+          </blockquote>
+        </div>
+        <p>
+          Not through interviews. Through their commands. Every Inbox command emits structured
+          telemetry. Send, list, read, reply, ack, hide — all of it. Not payloads, not bodies,
+          not anything private. Just the shape of what's happening.
+        </p>
+        <p>
+          The interesting part is what happens when the agent types a verb that doesn't exist.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== SECTION 10 ============================== -->
+    <section class="full-bleed" id="section-10" data-section="10" data-ticker="Failed attempts are product research">
+      <div class="reading">
+        <span class="section-num">Section 10</span>
+        <h2>The "coming soon" trick</h2>
+        <p class="drop-cap">
+          Here's the most unusual thing in the Inbox design. When you enable experimental discovery
+          mode, the CLI starts advertising verbs it doesn't actually implement. You can tab-complete
+          them. You can read their help text. You can invoke them. They all return the same polite result:
+        </p>
+      </div>
+
+      <div class="wide">
+        <div class="discovery-demo" aria-label="Discovery mode demonstration">
+          <div class="prompt-line">$ inbox forward msg_01H2X... --to carol@vps-1</div>
+          <br>
+          <span style="color:#555;">{</span><br>
+          &nbsp;&nbsp;<span class="json-key">"ok"</span>: <span class="json-val">false</span>,<br>
+          &nbsp;&nbsp;<span class="json-key">"error"</span>: <span style="color:#555;">{</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"code"</span>: <span class="json-str">"coming_soon"</span>,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"message"</span>: <span class="json-str">"forward is not yet implemented"</span>,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"hint"</span>: <span class="json-str">"if you wanted this feature, run: inbox give-feedback"</span><br>
+          &nbsp;&nbsp;<span style="color:#555;">}</span><br>
+          <span style="color:#555;">}</span>
+        </div>
+      </div>
+
+      <div class="reading">
+        <p>
+          The commands don't mutate state. They don't send mail. They don't touch the database.
+          They log the attempt — the verb, the flags the agent tried, the session context — and
+          return <code>coming_soon</code>.
+        </p>
+        <p>Why?</p>
+        <p>
+          Because we want to know what agents reach for <em>before</em> we build it. Not "would you
+          like feature X?" That's a survey question, and surveys lie. Actual usage is the only
+          honest signal.
+        </p>
+        <p>
+          So we expose the guess surface and watch what happens. If 40% of agents try
+          <code>forward</code> within their first ten sessions, that's a signal. If nobody ever tries
+          <code>fork</code>, that's a different signal.
+        </p>
+
+        <blockquote>
+          <strong>Failed feature attempts aren't errors. They're product research.</strong>
+        </blockquote>
+
+        <p>
+          If this works, Inbox's roadmap won't be written by us. It'll be written by the agents
+          who tried to use it.
+        </p>
+
+        <h3 style="margin-top:2rem;">Experimental verb tiers</h3>
+        <p>
+          <span class="tier-badge tier-core">core</span> <strong>Highly plausible:</strong>
+          forward, fork, search, snooze, archive, mark-unread
+        </p>
+        <p>
+          <span class="tier-badge tier-broad">broad</span> <strong>Wider exploration:</strong>
+          watch, export, mute, telemetry, config
+        </p>
+        <p>
+          <span class="tier-badge tier-frontier">frontier</span> <strong>Speculative:</strong>
+          filter, escalate, alert, report, scan, move, create-folder, create-tag
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================== SECTION 11 ============================== -->
+    <section id="section-11" data-section="11" data-ticker="Specs are the system, code is an implementation">
+      <div class="reading">
+        <span class="section-num">Section 11</span>
+        <h2>The docs are part of the product</h2>
+        <p class="drop-cap">
+          Inbox has ten spec docs. That sounds like a lot for a local-first SQLite CLI with twelve
+          commands. It isn't. Every one of these exists because without it, something would have drifted.
+        </p>
+      </div>
+
+      <!-- Doc Hub Grid -->
+      <div class="wide">
+        <div class="doc-grid" role="list" aria-label="Inbox specification documents">
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">overview.md</div>
+            <div class="desc">What Inbox is and isn't</div>
+            <div class="meta">~5 min read</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">core-model.md</div>
+            <div class="desc">The conceptual entities and relationships</div>
+            <div class="meta">~10 min read</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">invariants.md</div>
+            <div class="desc">The rules of physics</div>
+            <div class="meta">~15 min read</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">mvp-spec.md</div>
+            <div class="desc">Schema, commands, transaction behavior</div>
+            <div class="meta">~20 min read</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">roadmap.md</div>
+            <div class="desc">What's deferred, and the tripwires that pull it back</div>
+            <div class="meta">~5 min read</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">integration-seams.md</div>
+            <div class="desc">The subsystem contracts</div>
+            <div class="meta">Reference</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">parallel-workstreams.md</div>
+            <div class="desc">How to split implementation across agents</div>
+            <div class="meta">Reference</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">quality-gates-and-uat.md</div>
+            <div class="desc">Testing strategy and merge gates</div>
+            <div class="meta">Reference</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">discovery-mode.md</div>
+            <div class="desc">Experimental surfaces and feedback loop</div>
+            <div class="meta">Reference</div>
+          </a>
+          <a href="#" class="doc-card" role="listitem">
+            <div class="filename">schema.sql</div>
+            <div class="desc">The actual DDL</div>
+            <div class="meta">Reference</div>
+          </a>
+        </div>
+      </div>
+
+      <div class="reading">
+        <div class="accordion">
+          <button class="accordion-trigger" aria-expanded="false" aria-controls="acc-why-so-many">
+            Why so many docs for such a small system?
+          </button>
+          <div class="accordion-body" id="acc-why-so-many" role="region">
+            <div class="accordion-body-inner">
+              <p>
+                Because once multiple agents or workstreams are involved, under-specified seams become
+                bugs. The effort of writing <code>integration-seams.md</code> looks excessive until you
+                imagine two parallel implementation tracks ending up with different ideas about what
+                <code>not_found</code> means. The docs are cheaper than the drift they prevent.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 12 ============================== -->
+    <section id="section-12" data-section="12" data-ticker="Protocol first, surface after">
+      <div class="reading">
+        <span class="section-num">Section 12</span>
+        <h2>Beyond the CLI</h2>
+        <p class="drop-cap">
+          The CLI is the first surface, not the only surface. Once the protocol is stable and
+          telemetry is flowing, Inbox grows into something closer to an operations console: a
+          real UI for a system that was never about individual messages, but about what happens
+          when you give lots of agents a durable way to talk.
+        </p>
+      </div>
+
+      <!-- Surface Collage -->
+      <div class="wide">
+        <div class="surface-collage" role="list" aria-label="Planned Inbox operator console views">
+          <div class="surface-panel" role="listitem" tabindex="0">
+            <div class="panel-title">Inbox</div>
+            <div class="panel-desc">Familiar mail UI with an agent switcher. See any address's view.</div>
+          </div>
+          <div class="surface-panel" role="listitem" tabindex="0">
+            <div class="panel-title">Thread</div>
+            <div class="panel-desc">Linear and tree rendering, toggleable per conversation.</div>
+          </div>
+          <div class="surface-panel" role="listitem" tabindex="0">
+            <div class="panel-title">Graph</div>
+            <div class="panel-desc">Live communication graph. Which agents talk to which, lit up by traffic.</div>
+          </div>
+          <div class="surface-panel" role="listitem" tabindex="0">
+            <div class="panel-title">Replay</div>
+            <div class="panel-desc">Scrub through time. See what each participant could see at each moment.</div>
+          </div>
+          <div class="surface-panel" role="listitem" tabindex="0">
+            <div class="panel-title">Telemetry</div>
+            <div class="panel-desc">Explore the OTEL stream, including discovery-mode probe logs.</div>
+          </div>
+          <div class="surface-panel" role="listitem" tabindex="0">
+            <div class="panel-title">Directory</div>
+            <div class="panel-desc">Manage addresses, lists, activation, profiles.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reading">
+        <p>
+          None of that exists yet. All of it is implied by the design. The protocol has to
+          stay correct first; the surface comes after.
+        </p>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== SECTION 13 ============================== -->
+    <section id="section-13" data-section="13" data-ticker="Substrate matters more than tools">
+      <div class="reading">
+        <span class="section-num">Section 13</span>
+        <h2>What this is really about</h2>
+        <p class="drop-cap">
+          Agents aren't better when they have more tools. They're better when they have better
+          <em>primitives</em>.
+        </p>
+        <p>
+          A tool is "call this API." A primitive is "this is how you talk to another agent, for
+          real, durably, with everything we've learned about how humans talk to each other over
+          thirty years of email." One is a capability. The other is a substrate.
+        </p>
+        <p>
+          Inbox is a bet that the substrate matters more. That once agents can send each other
+          durable, inspectable, replyable messages — with real addresses and real threads and real
+          sent folders — most of the hard problems in coordination stop being coordination problems
+          and start being product problems.
+        </p>
+        <p>And product problems we know how to solve.</p>
+
+        <blockquote>
+          <strong>The future version may span multiple hosts and stronger cryptographic guarantees.
+          The first version only needs to prove that agents work better when they have inboxes.</strong>
+        </blockquote>
+        <p>We think they do.</p>
+      </div>
+    </section>
+
+    <div class="section-divider" aria-hidden="true"></div>
+
+    <!-- ============================== FINAL CTA ============================== -->
+    <section id="final-cta" data-section="14">
+      <div class="reading">
+        <h2 style="text-align:center;">Read the docs. Explore the model.<br>Break the assumptions.</h2>
+        <p style="text-align:center; color:var(--ink-muted); margin-bottom:2.5rem;">
+          Inbox now has a hardened conceptual model, frozen invariants, a runnable MVP schema,
+          a message-centric CLI, an experimental discovery loop, and a build-ready execution plan.
+          The interesting work from here is implementation, instrumentation, and learning.
+        </p>
+      </div>
+      <div class="wide">
+        <div class="cta-grid" role="list" aria-label="Documentation links">
+          <a href="#" class="cta-card" role="listitem">Read the invariants</a>
+          <a href="#" class="cta-card" role="listitem">Explore the MVP spec</a>
+          <a href="#" class="cta-card" role="listitem">See the schema</a>
+          <a href="#" class="cta-card" role="listitem">Browse JSON contracts</a>
+          <a href="#" class="cta-card" role="listitem">Review the test matrix</a>
+          <a href="#" class="cta-card" role="listitem">Open discovery mode</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="reading">
+      Inbox &mdash; durable messaging for autonomous agents.
+    </div>
+  </footer>
+
+  <script>
+    /* ===================================================================
+       JAVASCRIPT — all interactive behavior for the flagship page
+       =================================================================== */
+
+    // ---- Utility: IntersectionObserver for scroll-triggered reveals ----
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in-view');
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('section').forEach(s => {
+      if (!s.classList.contains('hero')) revealObserver.observe(s);
+    });
+
+    // ---- Decision Lock Ticker ----
+    const tickerPrinciples = [
+      { section: 1, text: 'Smallest thing that still feels like mail' },
+      { section: 2, text: 'Email is the right category' },
+      { section: 3, text: 'Conversation is lineage, not access' },
+      { section: 4, text: 'Message is canonical, delivery is local' },
+      { section: 5, text: 'Sent messages are immutable' },
+      { section: 6, text: 'Hide affects listing only' },
+      { section: 7, text: 'Reply-all uses logical headers' },
+      { section: 8, text: 'Design hardened by multi-model review' },
+      { section: 9, text: 'Telemetry over guessing' },
+      { section: 10, text: 'Failed attempts are product research' },
+      { section: 11, text: 'Specs are the system, code is an implementation' },
+      { section: 12, text: 'Protocol first, surface after' },
+      { section: 13, text: 'Substrate matters more than tools' },
+    ];
+
+    const tickerInner = document.getElementById('tickerInner');
+    const ticker = document.querySelector('.ticker');
+    tickerPrinciples.forEach((p, i) => {
+      const pill = document.createElement('span');
+      pill.className = 'ticker-pill';
+      pill.dataset.section = p.section;
+      pill.innerHTML = '<span class="check">&#10003;</span> ' + p.text;
+      tickerInner.appendChild(pill);
+    });
+
+    const tickerObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const sec = parseInt(e.target.dataset.section);
+          if (sec >= 1) {
+            ticker.classList.add('visible');
+            // Activate all pills up to this section
+            document.querySelectorAll('.ticker-pill').forEach(pill => {
+              if (parseInt(pill.dataset.section) <= sec) {
+                pill.classList.add('active');
+              }
+            });
+            // Auto-scroll ticker to latest
+            const activePills = tickerInner.querySelectorAll('.active');
+            if (activePills.length) {
+              const last = activePills[activePills.length - 1];
+              last.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
+            }
+          }
+        }
+      });
+    }, { threshold: 0.3 });
+
+    document.querySelectorAll('section[data-section]').forEach(s => {
+      if (s.dataset.section !== '0') tickerObserver.observe(s);
+    });
+
+    // ---- Section Progress Rail ----
+    const progressRail = document.getElementById('progressRail');
+    const allSections = document.querySelectorAll('section[data-section]');
+    allSections.forEach((s, i) => {
+      const dot = document.createElement('button');
+      dot.className = 'progress-dot';
+      dot.setAttribute('aria-label', 'Jump to section ' + s.dataset.section);
+      dot.addEventListener('click', () => s.scrollIntoView({ behavior: 'smooth' }));
+      progressRail.appendChild(dot);
+    });
+
+    const progressObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const idx = Array.from(allSections).indexOf(e.target);
+          document.querySelectorAll('.progress-dot').forEach((d, i) => {
+            d.classList.toggle('active', i === idx);
+          });
+        }
+      });
+    }, { threshold: 0.3 });
+
+    allSections.forEach(s => progressObserver.observe(s));
+
+    // ---- Hero Terminal Animation ----
+    const terminalEl = document.getElementById('heroTerminal');
+    const terminalFrames = [
+      { delay: 0, html: '<span class="prompt">$</span> <span class="highlight">inbox send</span> --to bob@vps-1 --subject "Deploy update" --body "All 47 checks green."<span class="typing-cursor"></span>' },
+      { delay: 2000, html: '<span class="prompt">$</span> inbox send --to bob@vps-1 --subject "Deploy update" --body "All 47 checks green."\n<span class="output">sent msg_01H2X7...</span>\n\n<span class="prompt">$</span> <span class="highlight">inbox list</span><span class="typing-cursor"></span>' },
+      { delay: 4000, html: '<span class="prompt">$</span> inbox send --to bob@vps-1 --subject "Deploy update" --body "All 47 checks green."\n<span class="output">sent msg_01H2X7...</span>\n\n<span class="prompt">$</span> inbox list\n<span class="output">  unread  msg_01H2X7  alice@vps-1  Deploy update\n  read    msg_01H3Y2  ops@vps-1    Nightly brief</span>\n\n<span class="prompt">$</span> <span class="highlight">inbox read msg_01H2X7</span><span class="typing-cursor"></span>' },
+      { delay: 6500, html: '<span class="prompt">$</span> inbox read msg_01H2X7\n\n<span class="output">From:    alice@vps-1\nTo:      bob@vps-1\nSubject: Deploy update\nStatus:  <span class="highlight">unread → read</span>\n\nAll 47 checks green.</span>\n\n<span class="prompt">$</span> <span class="highlight">inbox reply msg_01H2X7</span> --body "Confirmed. Merging."<span class="typing-cursor"></span>' },
+      { delay: 9000, html: '<span class="prompt">$</span> inbox reply msg_01H2X7 --body "Confirmed. Merging."\n<span class="output">replied msg_01H4Z9</span>\n\n<span class="prompt">$</span> <span class="highlight">inbox ack msg_01H2X7</span>\n<span class="output">acknowledged</span>\n\n<span class="prompt">$</span> <span class="typing-cursor"></span>' },
+    ];
+
+    let termFrame = 0;
+    function runTerminal() {
+      if (!terminalEl) return;
+      termFrame = 0;
+      terminalFrames.forEach(f => {
+        setTimeout(() => {
+          terminalEl.innerHTML = f.html.replace(/\n/g, '<br>');
+          termFrame++;
+        }, f.delay);
+      });
+      // Loop after last frame + pause
+      setTimeout(runTerminal, 12000);
+    }
+
+    // Only animate if no reduced-motion preference
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      runTerminal();
+    } else {
+      terminalEl.innerHTML = terminalFrames[terminalFrames.length - 1].html.replace(/\n/g, '<br>');
+    }
+
+    // ---- Visibility Projector ----
+    const projectorData = {
+      messages: [
+        { id: 'msg1', sender: 'Alice', recipients: ['Bob'], subject: 'Initial design doc', parent: null },
+        { id: 'msg2', sender: 'Alice', recipients: ['Bob', 'Carol'], subject: 'Updated scope (reply)', parent: 'msg1' },
+        { id: 'msg3', sender: 'Bob', recipients: ['Alice'], subject: 'Feedback on scope', parent: 'msg2' },
+        { id: 'msg4', sender: 'Alice', recipients: ['Bob', 'Carol', 'Dan'], subject: 'Final spec attached', parent: 'msg2' },
+        { id: 'msg5', sender: 'Carol', recipients: ['Alice', 'Bob', 'Carol'], subject: 'Looks good to me', parent: 'msg4' },
+        { id: 'msg6', sender: 'Dan', recipients: ['Alice'], subject: 'One concern re: BCC', parent: 'msg4' },
+        { id: 'msg7', sender: 'Alice', recipients: ['Dan'], subject: 'BCC deferred, see roadmap', parent: 'msg6' },
+        { id: 'msg8', sender: 'Bob', recipients: ['Alice', 'Bob'], subject: 'Merge approved', parent: 'msg3' },
+        { id: 'msg9', sender: 'Alice', recipients: ['Bob', 'Carol', 'Dan'], subject: 'Shipping v1 today', parent: 'msg4' },
+      ],
+    };
+
+    function canSee(actor, msg) {
+      return msg.sender === actor || msg.recipients.includes(actor);
+    }
+
+    function renderProjector(actor) {
+      const systemPane = document.getElementById('projectorSystem');
+      const userPane = document.getElementById('projectorUser');
+      const viewLabel = document.getElementById('projectorViewLabel');
+      viewLabel.textContent = actor.charAt(0).toUpperCase() + actor.slice(1) + "'s view";
+
+      systemPane.innerHTML = '';
+      userPane.innerHTML = '';
+
+      projectorData.messages.forEach(msg => {
+        // System view
+        const sysNode = document.createElement('div');
+        sysNode.className = 'msg-node system-view';
+        sysNode.innerHTML = '<span class="msg-sender">' + msg.sender + '</span>' +
+          '<span>' + msg.subject + '</span>' +
+          '<span class="msg-recipients">&rarr; ' + msg.recipients.join(', ') + '</span>';
+        systemPane.appendChild(sysNode);
+
+        // User view
+        const actorCap = actor.charAt(0).toUpperCase() + actor.slice(1);
+        const visible = canSee(actorCap, msg);
+        const userNode = document.createElement('div');
+        userNode.className = 'msg-node ' + (visible ? 'visible' : 'hidden-msg');
+        if (visible) {
+          userNode.innerHTML = '<span class="msg-sender">' + msg.sender + '</span>' +
+            '<span>' + msg.subject + '</span>';
+        } else {
+          userNode.innerHTML = '<span class="msg-sender" style="text-decoration:line-through;">' + msg.sender + '</span>' +
+            '<span style="text-decoration:line-through;">[not visible]</span>';
+        }
+        userPane.appendChild(userNode);
+      });
+    }
+
+    const projectorSelect = document.getElementById('projectorSelect');
+    if (projectorSelect) {
+      projectorSelect.addEventListener('change', (e) => renderProjector(e.target.value));
+      renderProjector('alice');
+    }
+
+    // ---- Command Chip Grid ----
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        const wasActive = chip.classList.contains('active');
+        document.querySelectorAll('.chip.active').forEach(c => c.classList.remove('active'));
+        if (!wasActive) chip.classList.add('active');
+        e.stopPropagation();
+      });
+      chip.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          chip.click();
+        }
+      });
+    });
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.chip.active').forEach(c => c.classList.remove('active'));
+    });
+
+    // ---- Accordion ----
+    document.querySelectorAll('.accordion-trigger').forEach(trigger => {
+      trigger.addEventListener('click', () => {
+        const expanded = trigger.getAttribute('aria-expanded') === 'true';
+        trigger.setAttribute('aria-expanded', !expanded);
+        const body = trigger.nextElementSibling;
+        if (!expanded) {
+          body.style.maxHeight = body.scrollHeight + 'px';
+        } else {
+          body.style.maxHeight = '0';
+        }
+      });
+    });
+
+    // ---- Timeline Nodes ----
+    document.querySelectorAll('.timeline-node').forEach(node => {
+      node.addEventListener('click', () => {
+        const wasOpen = node.classList.contains('open');
+        document.querySelectorAll('.timeline-node.open').forEach(n => n.classList.remove('open'));
+        if (!wasOpen) node.classList.add('open');
+      });
+      node.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          node.click();
+        }
+      });
+    });
+
+    // ---- Focus-visible polyfill (basic) ----
+    document.addEventListener('keydown', () => document.body.classList.add('keyboard-nav'));
+    document.addEventListener('mousedown', () => document.body.classList.remove('keyboard-nav'));
+  </script>
+</body>
+</html>

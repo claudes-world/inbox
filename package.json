@@ -1,18 +1,26 @@
 {
   "name": "tryinbox",
   "private": true,
+  "packageManager": "pnpm@10.28.1",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.28.0"
+  },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "prebuild": "pnpm --filter @inbox/contracts build",
     "pretest": "pnpm --filter @inbox/contracts build",
+    "precoverage": "pnpm --filter @inbox/contracts build",
     "pretypecheck": "pnpm --filter @inbox/contracts build",
     "dev:bff": "pnpm --filter @inbox/bff dev",
     "dev:ui": "pnpm --filter @inbox/ui dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "coverage": "pnpm -r --if-present run coverage",
+    "typecheck": "pnpm -r typecheck",
+    "gen:openapi": "node scripts/generate-openapi.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

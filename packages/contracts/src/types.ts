@@ -7,30 +7,53 @@
 import type { z } from "zod";
 import type {
   addressSummarySchema,
+  analyticsOverviewQuerySchema,
+  analyticsOverviewResponseSchema,
+  analyticsTimeWindowSchema,
+  analyticsTopEntrySchema,
   comingSoonErrorSchema,
+  deliveryEventListResponseSchema,
+  deliveryEventSchema,
+  deliveryEventTypeSchema,
   deliveryStateSchema,
   directoryListResponseSchema,
   directoryMembersResponseSchema,
+  directoryQuerySchema,
   directoryShowResponseSchema,
   errorDetailSchema,
   errorEnvelopeSchema,
+  errorResponseSchema,
+  eventsQuerySchema,
+  experimentListResponseSchema,
+  experimentSchema,
+  experimentStatusSchema,
+  experimentVariantSchema,
+  feedbackBoardResponseSchema,
+  feedbackEntrySchema,
+  feedbackSentimentSchema,
   giveFeedbackResponseSchema,
+  inboxQuerySchema,
+  inboxReadQuerySchema,
   listItemSchema,
   listResponseSchema,
   messageContentSchema,
   mutationResponseSchema,
   readResponseSchema,
   referenceSchema,
+  replyRequestSchema,
   replyResponseSchema,
   threadReferenceSchema,
   resolutionSummarySchema,
+  sendRequestSchema,
   sendResponseSchema,
   sentListItemSchema,
   sentListResponseSchema,
   sentMutationResponseSchema,
+  sentQuerySchema,
   sentReadResponseSchema,
   sentStateSchema,
   threadItemSchema,
+  threadQuerySchema,
   threadResponseSchema,
   whoamiResponseSchema,
 } from "./schemas.js";
@@ -84,6 +107,37 @@ export type DirectoryMembersResponse = z.infer<
 export type GiveFeedbackResponse = z.infer<typeof giveFeedbackResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// Experiments (feature flag / A/B test board)
+// ---------------------------------------------------------------------------
+
+export type ExperimentStatus = z.infer<typeof experimentStatusSchema>;
+export type ExperimentVariant = z.infer<typeof experimentVariantSchema>;
+export type Experiment = z.infer<typeof experimentSchema>;
+export type ExperimentListResponse = z.infer<
+  typeof experimentListResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
+// Feedback board
+// ---------------------------------------------------------------------------
+
+export type FeedbackSentiment = z.infer<typeof feedbackSentimentSchema>;
+export type FeedbackEntry = z.infer<typeof feedbackEntrySchema>;
+export type FeedbackBoardResponse = z.infer<typeof feedbackBoardResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Delivery events (event inspector)
+// ---------------------------------------------------------------------------
+
+// Note: DeliveryEventType is already exported from enums.ts with different
+// values. The inspector-facing event kind is re-named to avoid the collision.
+export type DeliveryEventKind = z.infer<typeof deliveryEventTypeSchema>;
+export type DeliveryEvent = z.infer<typeof deliveryEventSchema>;
+export type DeliveryEventListResponse = z.infer<
+  typeof deliveryEventListResponseSchema
+>;
+
+// ---------------------------------------------------------------------------
 // Discriminated union for all CLI responses
 // ---------------------------------------------------------------------------
 
@@ -104,3 +158,26 @@ export type SuccessResponse =
   | GiveFeedbackResponse;
 
 export type CliResponse = SuccessResponse | ErrorEnvelope | ComingSoonError;
+
+// ---------------------------------------------------------------------------
+// BFF request / query types (OpenAPI track)
+// ---------------------------------------------------------------------------
+
+export type AnalyticsTimeWindow = z.infer<typeof analyticsTimeWindowSchema>;
+export type AnalyticsTopEntry = z.infer<typeof analyticsTopEntrySchema>;
+export type AnalyticsOverviewResponse = z.infer<
+  typeof analyticsOverviewResponseSchema
+>;
+export type AnalyticsOverviewQuery = z.infer<
+  typeof analyticsOverviewQuerySchema
+>;
+
+export type SendRequest = z.infer<typeof sendRequestSchema>;
+export type ReplyRequest = z.infer<typeof replyRequestSchema>;
+export type InboxListQuery = z.infer<typeof inboxQuerySchema>;
+export type InboxReadQuery = z.infer<typeof inboxReadQuerySchema>;
+export type SentListQuery = z.infer<typeof sentQuerySchema>;
+export type ThreadQuery = z.infer<typeof threadQuerySchema>;
+export type DirectoryListQuery = z.infer<typeof directoryQuerySchema>;
+export type EventsQuery = z.infer<typeof eventsQuerySchema>;
+export type ErrorResponse = z.infer<typeof errorResponseSchema>;

@@ -1,0 +1,2864 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Inbox BFF API",
+    "version": "0.10.0",
+    "description": "Messaging platform for agents. Every endpoint except /health and /api/openapi.json requires the `x-inbox-address` header."
+  },
+  "components": {
+    "schemas": {
+      "AddressSummary": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^@]+@[^@]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "human",
+              "service",
+              "list"
+            ]
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_listed": {
+            "type": "boolean"
+          },
+          "classification": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "address",
+          "kind",
+          "display_name",
+          "description",
+          "is_active",
+          "is_listed",
+          "classification"
+        ],
+        "description": "A summary of an address (agent, human, service, or list)"
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "not_found",
+                  "invalid_argument",
+                  "invalid_state",
+                  "permission_denied",
+                  "internal_error",
+                  "coming_soon"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "target": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ],
+        "description": "Standard error envelope returned by every non-2xx response"
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Standard HTTP error response. The BFF currently returns the richer `ErrorEnvelope` shape, which is a superset; clients should handle both."
+      },
+      "ListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message_id": {
+                  "type": "string",
+                  "pattern": "^msg_"
+                },
+                "conversation_id": {
+                  "type": "string",
+                  "pattern": "^cnv_"
+                },
+                "sender": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "delivered_at_ms": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "view_kind": {
+                  "type": "string",
+                  "enum": [
+                    "received"
+                  ]
+                },
+                "engagement_state": {
+                  "type": "string",
+                  "enum": [
+                    "unread",
+                    "read",
+                    "acknowledged"
+                  ]
+                },
+                "visibility_state": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "hidden"
+                  ]
+                },
+                "effective_role": {
+                  "type": "string",
+                  "enum": [
+                    "to",
+                    "cc",
+                    "bcc"
+                  ]
+                },
+                "body_preview": {
+                  "type": "string"
+                },
+                "delivery_id": {
+                  "type": "string",
+                  "pattern": "^dly_"
+                }
+              },
+              "required": [
+                "message_id",
+                "conversation_id",
+                "sender",
+                "subject",
+                "delivered_at_ms",
+                "view_kind",
+                "engagement_state",
+                "visibility_state",
+                "effective_role",
+                "body_preview",
+                "delivery_id"
+              ]
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "returned_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "items",
+          "limit",
+          "returned_count"
+        ],
+        "description": "Result of GET /api/inbox — received message summaries"
+      },
+      "ReadResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "message_id": {
+                "type": "string",
+                "pattern": "^msg_"
+              },
+              "conversation_id": {
+                "type": "string",
+                "pattern": "^cnv_"
+              },
+              "parent_message_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^msg_"
+              },
+              "sender": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^@]+@[^@]+$"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "public_to": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                }
+              },
+              "public_cc": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                }
+              },
+              "references": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "path",
+                        "url",
+                        "json",
+                        "text",
+                        "artifact_id",
+                        "other"
+                      ]
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "mime_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "metadata": {}
+                  },
+                  "required": [
+                    "kind",
+                    "value",
+                    "label",
+                    "mime_type"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "message_id",
+              "conversation_id",
+              "parent_message_id",
+              "sender",
+              "subject",
+              "body",
+              "public_to",
+              "public_cc",
+              "references"
+            ]
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "view_kind": {
+                "type": "string",
+                "enum": [
+                  "received"
+                ]
+              },
+              "engagement_state": {
+                "type": "string",
+                "enum": [
+                  "unread",
+                  "read",
+                  "acknowledged"
+                ]
+              },
+              "visibility_state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "hidden"
+                ]
+              },
+              "effective_role": {
+                "type": "string",
+                "enum": [
+                  "to",
+                  "cc",
+                  "bcc"
+                ]
+              },
+              "delivery_id": {
+                "type": "string",
+                "pattern": "^dly_"
+              }
+            },
+            "required": [
+              "view_kind",
+              "engagement_state",
+              "visibility_state",
+              "effective_role",
+              "delivery_id"
+            ]
+          },
+          "history": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "ok",
+          "message",
+          "state",
+          "history"
+        ],
+        "description": "Result of GET /api/inbox/{messageId} — full message + state + history"
+      },
+      "SendRequest": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "cc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ]
+          },
+          "references": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "description": "Request body for POST /api/send. `to` and `cc` may be a single comma-separated string or an array of address strings."
+      },
+      "SendResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message_id": {
+            "type": "string",
+            "pattern": "^msg_"
+          },
+          "conversation_id": {
+            "type": "string",
+            "pattern": "^cnv_"
+          },
+          "sender": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^@]+@[^@]+$"
+          },
+          "public_to": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^@]+@[^@]+$"
+            }
+          },
+          "public_cc": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^@]+@[^@]+$"
+            }
+          },
+          "resolved_recipient_count": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "resolution_summary": {
+            "type": "object",
+            "properties": {
+              "logical_recipient_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "resolved_recipient_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skipped_inactive_member_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deduped_recipient_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "logical_recipient_count",
+              "resolved_recipient_count",
+              "skipped_inactive_member_count",
+              "deduped_recipient_count"
+            ]
+          },
+          "sent_item_created": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "message_id",
+          "conversation_id",
+          "sender",
+          "public_to",
+          "public_cc",
+          "resolved_recipient_count",
+          "resolution_summary",
+          "sent_item_created"
+        ],
+        "description": "Result of POST /api/send"
+      },
+      "ReplyRequest": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "cc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "all": {
+            "type": "boolean"
+          },
+          "references": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "description": "Request body for POST /api/reply/{messageId}. When `all` is true, original To/Cc recipients are included automatically."
+      },
+      "ReplyResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message_id": {
+            "type": "string",
+            "pattern": "^msg_"
+          },
+          "conversation_id": {
+            "type": "string",
+            "pattern": "^cnv_"
+          },
+          "parent_message_id": {
+            "type": "string",
+            "pattern": "^msg_"
+          },
+          "sender": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^@]+@[^@]+$"
+          },
+          "resolved_recipient_count": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "resolution_summary": {
+            "type": "object",
+            "properties": {
+              "logical_recipient_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "resolved_recipient_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skipped_inactive_member_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deduped_recipient_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "logical_recipient_count",
+              "resolved_recipient_count",
+              "skipped_inactive_member_count",
+              "deduped_recipient_count"
+            ]
+          },
+          "sent_item_created": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "message_id",
+          "conversation_id",
+          "parent_message_id",
+          "sender",
+          "resolved_recipient_count",
+          "resolution_summary",
+          "sent_item_created"
+        ],
+        "description": "Result of POST /api/reply/{messageId}"
+      },
+      "MutationResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message_id": {
+            "type": "string",
+            "pattern": "^msg_"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "view_kind": {
+            "type": "string",
+            "enum": [
+              "received",
+              "sent"
+            ]
+          },
+          "engagement_state": {
+            "type": "string",
+            "enum": [
+              "unread",
+              "read",
+              "acknowledged"
+            ]
+          },
+          "visibility_state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "hidden"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "message_id",
+          "changed",
+          "view_kind",
+          "visibility_state"
+        ],
+        "description": "Result of inbox ack/hide/unhide mutations"
+      },
+      "SentListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message_id": {
+                  "type": "string",
+                  "pattern": "^msg_"
+                },
+                "conversation_id": {
+                  "type": "string",
+                  "pattern": "^cnv_"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "created_at_ms": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "view_kind": {
+                  "type": "string",
+                  "enum": [
+                    "sent"
+                  ]
+                },
+                "visibility_state": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "hidden"
+                  ]
+                }
+              },
+              "required": [
+                "message_id",
+                "conversation_id",
+                "subject",
+                "created_at_ms",
+                "view_kind",
+                "visibility_state"
+              ]
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "returned_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "items",
+          "limit",
+          "returned_count"
+        ],
+        "description": "Result of GET /api/sent — sent message summaries"
+      },
+      "SentReadResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message": {
+            "type": "object",
+            "properties": {
+              "message_id": {
+                "type": "string",
+                "pattern": "^msg_"
+              },
+              "conversation_id": {
+                "type": "string",
+                "pattern": "^cnv_"
+              },
+              "parent_message_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^msg_"
+              },
+              "sender": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[^@]+@[^@]+$"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "public_to": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                }
+              },
+              "public_cc": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                }
+              },
+              "references": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "path",
+                        "url",
+                        "json",
+                        "text",
+                        "artifact_id",
+                        "other"
+                      ]
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "mime_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "metadata": {}
+                  },
+                  "required": [
+                    "kind",
+                    "value",
+                    "label",
+                    "mime_type"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "message_id",
+              "conversation_id",
+              "parent_message_id",
+              "sender",
+              "subject",
+              "body",
+              "public_to",
+              "public_cc",
+              "references"
+            ]
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "view_kind": {
+                "type": "string",
+                "enum": [
+                  "sent"
+                ]
+              },
+              "visibility_state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "hidden"
+                ]
+              }
+            },
+            "required": [
+              "view_kind",
+              "visibility_state"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "message",
+          "state"
+        ],
+        "description": "Result of GET /api/sent/{messageId} — full sent message"
+      },
+      "SentMutationResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "message_id": {
+            "type": "string",
+            "pattern": "^msg_"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "view_kind": {
+            "type": "string",
+            "enum": [
+              "sent"
+            ]
+          },
+          "visibility_state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "hidden"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "message_id",
+          "changed",
+          "view_kind",
+          "visibility_state"
+        ],
+        "description": "Result of sent hide/unhide mutations"
+      },
+      "ThreadResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "conversation_id": {
+            "type": "string",
+            "pattern": "^cnv_"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message_id": {
+                  "type": "string",
+                  "pattern": "^msg_"
+                },
+                "parent_message_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^msg_"
+                },
+                "sender": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "created_at_ms": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "view_kind": {
+                  "type": "string",
+                  "enum": [
+                    "received",
+                    "sent"
+                  ]
+                },
+                "engagement_state": {
+                  "type": "string",
+                  "enum": [
+                    "unread",
+                    "read",
+                    "acknowledged"
+                  ]
+                },
+                "visibility_state": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "hidden"
+                  ]
+                },
+                "effective_role": {
+                  "type": "string",
+                  "enum": [
+                    "to",
+                    "cc"
+                  ]
+                },
+                "body_preview": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "references": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "path",
+                          "url",
+                          "json",
+                          "text",
+                          "artifact_id",
+                          "other"
+                        ]
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "value"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "message_id",
+                "parent_message_id",
+                "sender",
+                "subject",
+                "created_at_ms",
+                "view_kind",
+                "visibility_state"
+              ]
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "returned_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "total_visible_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "conversation_id",
+          "items",
+          "limit",
+          "returned_count",
+          "truncated",
+          "total_visible_count"
+        ],
+        "description": "Result of GET /api/thread/{conversationId}"
+      },
+      "DirectoryListResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddressSummary"
+            }
+          },
+          "returned_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "items",
+          "returned_count"
+        ],
+        "description": "Result of GET /api/directory"
+      },
+      "DirectoryShowResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "address": {
+            "$ref": "#/components/schemas/AddressSummary"
+          }
+        },
+        "required": [
+          "ok",
+          "address"
+        ],
+        "description": "Result of GET /api/directory/{address}"
+      },
+      "DirectoryMembersResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "group": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^@]+@[^@]+$"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[^@]+@[^@]+$"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "group",
+          "members"
+        ],
+        "description": "Result of GET /api/directory/{address}/members — list members of a group address"
+      },
+      "DeliveryEventListResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^evt_"
+                },
+                "delivery_id": {
+                  "type": "string",
+                  "pattern": "^dly_"
+                },
+                "message_id": {
+                  "type": "string",
+                  "pattern": "^msg_"
+                },
+                "event_type": {
+                  "type": "string",
+                  "enum": [
+                    "delivered",
+                    "read",
+                    "acknowledged",
+                    "replied",
+                    "hidden",
+                    "restored",
+                    "failed"
+                  ]
+                },
+                "actor_address": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[^@]+@[^@]+$"
+                },
+                "from_state": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "to_state": {
+                  "type": "string"
+                },
+                "created_ts": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "metadata": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "id",
+                "delivery_id",
+                "message_id",
+                "event_type",
+                "actor_address",
+                "from_state",
+                "to_state",
+                "created_ts"
+              ]
+            }
+          },
+          "returned_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "message_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "event_type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "delivered",
+                  "read",
+                  "acknowledged",
+                  "replied",
+                  "hidden",
+                  "restored",
+                  "failed"
+                ]
+              },
+              "actor_address": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "message_id",
+              "event_type",
+              "actor_address"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "returned_count"
+        ],
+        "description": "Result of GET /api/events — delivery event history"
+      },
+      "AnalyticsTopEntry": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^@]+@[^@]+$"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "address",
+          "count"
+        ],
+        "description": "A single top-N entry in the analytics overview: an address and its associated message count."
+      },
+      "AnalyticsOverviewResponse": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "all"
+            ]
+          },
+          "window_start_ts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "window_end_ts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inbox_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Messages received in window"
+          },
+          "sent_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Messages sent in window"
+          },
+          "response_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Fraction of inbox messages that got a reply from the user"
+          },
+          "active_conversations": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Unique conversation_ids with activity in window"
+          },
+          "top_senders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsTopEntry"
+            },
+            "description": "Top addresses that sent TO this user"
+          },
+          "top_recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsTopEntry"
+            },
+            "description": "Top addresses this user sent TO"
+          }
+        },
+        "required": [
+          "window",
+          "window_start_ts",
+          "window_end_ts",
+          "inbox_count",
+          "sent_count",
+          "response_rate",
+          "active_conversations",
+          "top_senders",
+          "top_recipients"
+        ],
+        "description": "Message volume, engagement, and relationship metrics for a time window"
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Liveness probe",
+        "responses": {
+          "200": {
+            "description": "Service is up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "service": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "service"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox": {
+      "get": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "List received messages",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "unread",
+                "read",
+                "acknowledged"
+              ]
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "active",
+                "hidden"
+              ]
+            },
+            "required": false,
+            "name": "visibility",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "since_ms",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "until_ms",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of inbox items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{messageId}": {
+      "get": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Read a received message",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "msg_abc123"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1",
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "peek",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full message content and delivery state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{messageId}/ack": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Mutate received message state (ack)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message ack result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{messageId}/hide": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Mutate received message state (hide)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message hide result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{messageId}/unhide": {
+      "post": {
+        "tags": [
+          "inbox"
+        ],
+        "summary": "Mutate received message state (unhide)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message unhide result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/send": {
+      "post": {
+        "tags": [
+          "send"
+        ],
+        "summary": "Send a new message",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message created and delivered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reply/{messageId}": {
+      "post": {
+        "tags": [
+          "send"
+        ],
+        "summary": "Reply to an existing message",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reply created and delivered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sent": {
+      "get": {
+        "tags": [
+          "sent"
+        ],
+        "summary": "List sent messages",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "active",
+                "hidden"
+              ]
+            },
+            "required": false,
+            "name": "visibility",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "since_ms",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "until_ms",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of sent items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sent/{messageId}": {
+      "get": {
+        "tags": [
+          "sent"
+        ],
+        "summary": "Read a sent message",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sent message details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentReadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sent/{messageId}/hide": {
+      "post": {
+        "tags": [
+          "sent"
+        ],
+        "summary": "Mutate sent message visibility (hide)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sent hide result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sent/{messageId}/unhide": {
+      "post": {
+        "tags": [
+          "sent"
+        ],
+        "summary": "Mutate sent message visibility (unhide)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "messageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sent unhide result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/thread/{conversationId}": {
+      "get": {
+        "tags": [
+          "thread"
+        ],
+        "summary": "View a conversation thread",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "cnv_abc123"
+            },
+            "required": true,
+            "name": "conversationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1",
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "full",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread items in chronological order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/directory": {
+      "get": {
+        "tags": [
+          "directory"
+        ],
+        "summary": "List directory addresses",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "agent",
+                "human",
+                "service",
+                "list"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1",
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "listed",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory entries matching the filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/directory/{address}": {
+      "get": {
+        "tags": [
+          "directory"
+        ],
+        "summary": "Show a single directory address",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "address",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryShowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/directory/{address}/members": {
+      "get": {
+        "tags": [
+          "directory"
+        ],
+        "summary": "List members of a group address",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "list-dev@vps-1"
+            },
+            "required": true,
+            "name": "address",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryMembersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Delivery event history (JSON, not SSE)",
+        "description": "Returns the delivery event history for the acting address. This is a regular JSON endpoint — NOT Server-Sent Events.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "message_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delivered",
+                "read",
+                "acknowledged",
+                "replied",
+                "hidden",
+                "restored",
+                "failed"
+              ]
+            },
+            "required": false,
+            "name": "event_type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery events matching the filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryEventListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/overview": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Get message volume and engagement analytics for a time window",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "all"
+              ],
+              "default": "week"
+            },
+            "required": false,
+            "name": "window",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
+              "example": "pm-alpha@vps-1"
+            },
+            "required": true,
+            "name": "x-inbox-address",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsOverviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad query params, malformed JSON, invalid field values)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for the acting address. The `Retry-After` response header advertises the number of seconds to wait before the next request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

@@ -10,6 +10,18 @@ import { ThreadScreen } from "./screens/ThreadScreen.js";
 import { SentScreen } from "./screens/SentScreen.js";
 import { SentReadScreen } from "./screens/SentReadScreen.js";
 import { DirectoryScreen } from "./screens/DirectoryScreen.js";
+import { HealthScreen } from "./screens/HealthScreen.js";
+import { ConfigScreen } from "./screens/ConfigScreen.js";
+import { SearchScreen } from "./screens/SearchScreen.js";
+import { ThreadTreeScreen } from "./screens/ThreadTreeScreen.js";
+import { EventInspectorScreen } from "./screens/EventInspectorScreen.js";
+import { VisibilityMatrixScreen } from "./screens/VisibilityMatrixScreen.js";
+import { GraphScreen } from "./screens/GraphScreen.js";
+import { ReplayScreen } from "./screens/ReplayScreen.js";
+import { IncidentReviewScreen } from "./screens/IncidentReviewScreen.js";
+import { ExperimentsScreen } from "./screens/ExperimentsScreen.js";
+import { FeedbackBoardScreen } from "./screens/FeedbackBoardScreen.js";
+import { WorkflowDashboardScreen } from "./screens/WorkflowDashboardScreen.js";
 
 function NavLink({
   hash,
@@ -52,6 +64,7 @@ export function App() {
   // Route matching
   const messageMatch = matchRoute("/message/:id", path);
   const threadMatch = matchRoute("/thread/:id", path);
+  const threadTreeMatch = matchRoute("/thread/:id/tree", path);
   const sentReadMatch = matchRoute("/sent/:id", path);
   const query = hashQuery(hash);
 
@@ -79,6 +92,16 @@ export function App() {
         <MessageReadScreen
           address={address}
           messageId={messageMatch.id}
+          navigate={navigate}
+        />
+      );
+    }
+
+    if (threadTreeMatch?.id) {
+      return (
+        <ThreadTreeScreen
+          address={address}
+          conversationId={threadTreeMatch.id}
           navigate={navigate}
         />
       );
@@ -126,6 +149,58 @@ export function App() {
       );
     }
 
+    if (path === "/health") {
+      return <HealthScreen address={address} navigate={navigate} />;
+    }
+
+    if (path === "/config") {
+      return <ConfigScreen address={address} navigate={navigate} />;
+    }
+
+    if (path === "/search") {
+      return <SearchScreen address={address} navigate={navigate} />;
+    }
+
+    if (path === "/events") {
+      return (
+        <EventInspectorScreen address={address} navigate={navigate} />
+      );
+    }
+
+    if (path === "/debug/visibility") {
+      return (
+        <VisibilityMatrixScreen address={address} navigate={navigate} />
+      );
+    }
+
+    if (path === "/graph") {
+      return (
+        <GraphScreen address={address} navigate={navigate} />
+      );
+    }
+
+    if (path === "/replay") {
+      return <ReplayScreen address={address} />;
+    }
+
+    if (path === "/incidents") {
+      return (
+        <IncidentReviewScreen address={address} navigate={navigate} />
+      );
+    }
+
+    if (path === "/experiments") {
+      return <ExperimentsScreen />;
+    }
+
+    if (path === "/feedback") {
+      return <FeedbackBoardScreen />;
+    }
+
+    if (path === "/workflows") {
+      return <WorkflowDashboardScreen address={address} />;
+    }
+
     // Default: Inbox
     return <InboxScreen address={address} navigate={navigate} />;
   };
@@ -167,6 +242,78 @@ export function App() {
               hash="/directory"
               currentHash={path}
               label="Directory"
+              navigate={navigate}
+            />
+            <span className="text-zinc-700 mx-0.5">|</span>
+            <NavLink
+              hash="/search"
+              currentHash={path}
+              label="Search"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/health"
+              currentHash={path}
+              label="Health"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/config"
+              currentHash={path}
+              label="Config"
+              navigate={navigate}
+            />
+            <span className="text-zinc-700 mx-0.5">|</span>
+            <NavLink
+              hash="/events"
+              currentHash={path}
+              label="Events"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/debug/visibility"
+              currentHash={path}
+              label="Visibility"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/graph"
+              currentHash={path}
+              label="Graph"
+              navigate={navigate}
+            />
+            <span className="mx-1 h-4 w-px bg-zinc-700" aria-hidden="true" />
+            <span className="text-[0.65rem] uppercase text-zinc-600 tracking-wider px-1">
+              Viz
+            </span>
+            <NavLink
+              hash="/workflows"
+              currentHash={path}
+              label="Workflows"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/replay"
+              currentHash={path}
+              label="Replay"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/incidents"
+              currentHash={path}
+              label="Incidents"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/experiments"
+              currentHash={path}
+              label="Experiments"
+              navigate={navigate}
+            />
+            <NavLink
+              hash="/feedback"
+              currentHash={path}
+              label="Feedback"
               navigate={navigate}
             />
           </nav>

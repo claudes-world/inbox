@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/telemetry.sh — Telemetry capture for observability.
 # All telemetry writes go to NDJSON log, never to the protocol DB.
 # Two capture modes: safe (minimal) and dangerous-full-context (rich).
