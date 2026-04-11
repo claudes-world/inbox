@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/query.sh — Query logic: list inbox, read message, sent view, thread view, directory lookups.
 
 # query_sent_list — List messages sent by actor with sent_items.

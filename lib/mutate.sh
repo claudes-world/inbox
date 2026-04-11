@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/mutate.sh — State mutation logic: read, ack, hide, unhide delivery and sent items.
 # All mutators are idempotent: no-op returns changed=false, appends NO event.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/common.sh — Shared utilities: ID generation, timestamps, error helpers, exit codes.
 
 # --- Exit code constants ---

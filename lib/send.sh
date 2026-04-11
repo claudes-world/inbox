@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/send.sh — Send and reply transaction logic: compose, resolve, deliver.
 # All-or-nothing transactions using db_transaction.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/commands.sh — CLI command handlers: wire library functions to CLI interface.
 # Each cmd_* function parses command-specific flags, validates, calls library, formats output.
 

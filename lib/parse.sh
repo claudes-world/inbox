@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/parse.sh — CLI input parsing: body sources, refs, time filters, limits, ID validation.
 
 # --- Body source parsing ---
