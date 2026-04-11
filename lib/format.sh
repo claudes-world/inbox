@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/format.sh — Output formatting: JSON/text switching, error envelopes, list/message display.
 
 # Global state: set by CLI harness based on --json flag

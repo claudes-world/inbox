@@ -3,32 +3,123 @@ set -euo pipefail
 
 # inbox — CLI entrypoint for the Inbox messaging system
 # Usage: inbox <command> [options]
-# Global flags: --json, --help
+# Global flags: --json, --help, --version
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+_resolve_inbox_script() {
+  local real_script="${BASH_SOURCE[0]}"
 
-# Source all lib modules in deterministic order
-for lib in "$SCRIPT_DIR"/lib/*.sh; do source "$lib"; done
+  if command -v greadlink >/dev/null 2>&1; then
+    greadlink -f "$real_script"
+  elif command -v readlink >/dev/null 2>&1 && readlink -f /dev/null >/dev/null 2>&1; then
+    readlink -f "$real_script"
+  else
+    while [[ -L "$real_script" ]]; do
+      local real_dir link_target
+      real_dir="$(cd "$(dirname "$real_script")" && pwd)"
+      link_target="$(readlink "$real_script")"
+      if [[ "$link_target" == /* ]]; then
+        real_script="$link_target"
+      else
+        real_script="$real_dir/$link_target"
+      fi
+    done
+    printf '%s/%s\n' "$(cd "$(dirname "$real_script")" && pwd)" "$(basename "$real_script")"
+  fi
+}
 
-# Initialize experimental mode and telemetry from env
-experimental_init
-telemetry_init
+REAL_SCRIPT="$(_resolve_inbox_script)"
+BIN_DIR="$(dirname "$REAL_SCRIPT")"
+PREFIX="$(dirname "$BIN_DIR")"
+SCRIPT_DIR="$PREFIX"
+
+_inbox_version() {
+  local version_file version
+  local candidates=()
+
+  if [[ -n "${INBOX_SHARE_DIR:-}" ]]; then
+    candidates+=("$INBOX_SHARE_DIR/../VERSION")
+    candidates+=("$INBOX_SHARE_DIR/VERSION")
+  else
+    candidates+=("$PREFIX/share/inbox/../VERSION")
+  fi
+  candidates+=("$PREFIX/VERSION")
+
+  for version_file in "${candidates[@]}"; do
+    if [[ -f "$version_file" ]]; then
+      IFS= read -r version < "$version_file" || true
+      if [[ -n "${version:-}" ]]; then
+        printf '%s\n' "$version"
+        return 0
+      fi
+    fi
+  done
+
+  printf 'unknown\n'
+}
 
 # --- Global flag parsing ---
-# Extract --json and --help before subcommand routing
+# Extract global flags before subcommand routing. --version must not depend on
+# lib discovery so broken installs can still report their installed version.
 _ARGS=()
 export INBOX_JSON_MODE=0
 _SHOW_HELP=0
+_SHOW_VERSION=0
 
 for arg in "$@"; do
   case "$arg" in
     --json) INBOX_JSON_MODE=1 ;;
     --help) _SHOW_HELP=1 ;;
+    --version|-v) _SHOW_VERSION=1 ;;
     *)      _ARGS+=("$arg") ;;
   esac
 done
 
 set -- "${_ARGS[@]+"${_ARGS[@]}"}"
+
+if [[ $_SHOW_VERSION -eq 1 ]]; then
+  _inbox_version
+  exit 0
+fi
+
+INBOX_LIB_DIR="${INBOX_LIB_DIR:-}"
+
+if [[ -z "$INBOX_LIB_DIR" ]]; then
+  if [[ -d "$PREFIX/lib/inbox" ]] && compgen -G "$PREFIX/lib/inbox/*.sh" >/dev/null; then
+    INBOX_LIB_DIR="$PREFIX/lib/inbox"
+  elif [[ -d "$PREFIX/lib" ]] && compgen -G "$PREFIX/lib/*.sh" >/dev/null; then
+    INBOX_LIB_DIR="$PREFIX/lib"
+  else
+    echo "error: cannot locate inbox lib dir (tried $PREFIX/lib/inbox, $PREFIX/lib)" >&2
+    exit 1
+  fi
+fi
+
+INBOX_SHARE_DIR="${INBOX_SHARE_DIR:-$PREFIX/share/inbox}"
+export INBOX_SHARE_DIR INBOX_LIB_DIR SCRIPT_DIR
+
+MARKER_COUNT=0
+for lib in "$INBOX_LIB_DIR"/*.sh; do
+  if head -5 "$lib" 2>/dev/null | grep -q "^# INBOX_LIB_FILE=1$"; then
+    MARKER_COUNT=$((MARKER_COUNT + 1))
+  fi
+done
+
+if [[ $MARKER_COUNT -lt 2 ]]; then
+  echo "error: $INBOX_LIB_DIR does not appear to contain inbox lib files (canary marker missing)" >&2
+  exit 1
+fi
+
+# Source all canary-validated lib modules in deterministic order.
+export LC_COLLATE=C
+for lib in "$INBOX_LIB_DIR"/*.sh; do
+  if head -5 "$lib" 2>/dev/null | grep -q "^# INBOX_LIB_FILE=1$"; then
+    source "$lib"
+  fi
+done
+
+# Initialize experimental mode and telemetry from env
+experimental_init
+telemetry_init
 
 # --- Help ---
 _show_help() {
@@ -57,8 +148,9 @@ Commands:
   give-feedback       Submit feature feedback
 
 Global flags:
-  --json    Output JSON to stdout (stderr silent)
-  --help    Show this help
+  --json          Output JSON to stdout (stderr silent)
+  --help          Show this help
+  --version, -v   Show version
 
 Environment:
   INBOX_ADDRESS   Acting address (required)

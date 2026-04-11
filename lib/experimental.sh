@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# INBOX_LIB_FILE=1
 # lib/experimental.sh — Experimental discovery mode and give-feedback command logic.
 # Never mutates Inbox protocol tables. All writes go to NDJSON log files only.
 
