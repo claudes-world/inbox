@@ -7,17 +7,16 @@
 import Database, { type Database as DatabaseType } from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { runMigrations, resolveSchemaDir } from "./migrations.js";
 
 const dbPath = process.env["INBOX_DB"] || "./inbox.db";
 
-// Ensure parent directory exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Ensure parent directory exists (skip for :memory: and file::memory:)
+if (dbPath !== ":memory:" && !dbPath.startsWith("file::memory:")) {
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 }
 
 const db: DatabaseType = new Database(dbPath);
@@ -26,37 +25,13 @@ const db: DatabaseType = new Database(dbPath);
 db.pragma("foreign_keys = ON");
 db.pragma("journal_mode = WAL");
 
-// Apply schema if not already present (same sentinel check as bash lib/db.sh)
-const tableCount = db
-  .prepare(
-    "SELECT count(*) as cnt FROM sqlite_master WHERE type='table' AND name='addresses'"
-  )
-  .get() as { cnt: number } | undefined;
-
-if (tableCount && tableCount.cnt === 0) {
-  // Try to find the schema file relative to project root
-  const schemaLocations = [
-    path.resolve(process.cwd(), "schema/001-init.sql"),
-    path.resolve(process.cwd(), "../../schema/001-init.sql"),
-    path.resolve(__dirname, "../../../schema/001-init.sql"),
-    path.resolve(__dirname, "../../../../schema/001-init.sql"),
-  ];
-
-  let schemaApplied = false;
-  for (const schemaPath of schemaLocations) {
-    if (fs.existsSync(schemaPath)) {
-      const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-      db.exec(schemaSql);
-      schemaApplied = true;
-      break;
-    }
-  }
-
-  if (!schemaApplied) {
-    console.warn(
-      "Warning: Could not find schema/001-init.sql. Database may not be initialized."
-    );
-  }
+const schemaDir = resolveSchemaDir();
+if (schemaDir) {
+  runMigrations(db, schemaDir);
+} else {
+  console.warn(
+    "Warning: Could not find schema/ directory. Database may not be initialized."
+  );
 }
 
 export default db;
