@@ -22,55 +22,21 @@ import type {
 import {
   deliveryEventListResponseSchema,
   directoryListResponseSchema,
+  directoryMembersResponseSchema,
   directoryShowResponseSchema,
   listResponseSchema,
+  mutationResponseSchema,
   readResponseSchema,
+  replyRequestSchema,
+  replyResponseSchema,
+  sendRequestSchema,
+  sendResponseSchema,
   sentListResponseSchema,
+  sentMutationResponseSchema,
   sentReadResponseSchema,
   threadResponseSchema,
 } from "@inbox/contracts";
-import { parsedGet } from "./lib/contract-fetch.js";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function headers(address: string): HeadersInit {
-  return {
-    "X-Inbox-Address": address,
-    "Content-Type": "application/json",
-  };
-}
-
-async function get<T>(url: string, address: string): Promise<T> {
-  const res = await fetch(url, { headers: headers(address) });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const msg =
-      body?.error?.message ?? `Request failed: ${res.status}`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
-
-async function post<T>(
-  url: string,
-  address: string,
-  body?: unknown,
-): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: headers(address),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    const msg =
-      data?.error?.message ?? `Request failed: ${res.status}`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
+import { parsedGet, parsedPost } from "./lib/contract-fetch.js";
 
 // ---------------------------------------------------------------------------
 // Inbox
@@ -109,21 +75,33 @@ export function postAck(
   address: string,
   messageId: string,
 ): Promise<MutationResponse> {
-  return post(`/api/inbox/${messageId}/ack`, address);
+  return parsedPost(
+    `/api/inbox/${messageId}/ack`,
+    address,
+    mutationResponseSchema,
+  );
 }
 
 export function postHide(
   address: string,
   messageId: string,
 ): Promise<MutationResponse> {
-  return post(`/api/inbox/${messageId}/hide`, address);
+  return parsedPost(
+    `/api/inbox/${messageId}/hide`,
+    address,
+    mutationResponseSchema,
+  );
 }
 
 export function postUnhide(
   address: string,
   messageId: string,
 ): Promise<MutationResponse> {
-  return post(`/api/inbox/${messageId}/unhide`, address);
+  return parsedPost(
+    `/api/inbox/${messageId}/unhide`,
+    address,
+    mutationResponseSchema,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +136,16 @@ export function postSend(
   address: string,
   payload: SendPayload,
 ): Promise<SendResponse> {
-  return post("/api/send", address, payload);
+  // Validate the request body client-side before the network roundtrip.
+  // Throws ZodError on a UI-constructed bad request (NOT drift — the drift
+  // error class is reserved for response validation failures).
+  const validatedBody = sendRequestSchema.parse(payload);
+  return parsedPost(
+    "/api/send",
+    address,
+    sendResponseSchema,
+    validatedBody,
+  );
 }
 
 export interface ReplyPayload {
@@ -172,7 +159,14 @@ export function postReply(
   messageId: string,
   payload: ReplyPayload,
 ): Promise<ReplyResponse> {
-  return post(`/api/reply/${messageId}`, address, payload);
+  // Validate client-side, same rationale as postSend above.
+  const validatedBody = replyRequestSchema.parse(payload);
+  return parsedPost(
+    `/api/reply/${messageId}`,
+    address,
+    replyResponseSchema,
+    validatedBody,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -213,14 +207,22 @@ export function postSentHide(
   address: string,
   messageId: string,
 ): Promise<SentMutationResponse> {
-  return post(`/api/sent/${messageId}/hide`, address);
+  return parsedPost(
+    `/api/sent/${messageId}/hide`,
+    address,
+    sentMutationResponseSchema,
+  );
 }
 
 export function postSentUnhide(
   address: string,
   messageId: string,
 ): Promise<SentMutationResponse> {
-  return post(`/api/sent/${messageId}/unhide`, address);
+  return parsedPost(
+    `/api/sent/${messageId}/unhide`,
+    address,
+    sentMutationResponseSchema,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -275,5 +277,9 @@ export function fetchDirectoryShow(
 export function fetchDirectoryMembers(
   address: string,
 ): Promise<DirectoryMembersResponse> {
-  return get(`/api/directory/${address}/members`, "system@local");
+  return parsedGet(
+    `/api/directory/${address}/members`,
+    "system@local",
+    directoryMembersResponseSchema,
+  );
 }

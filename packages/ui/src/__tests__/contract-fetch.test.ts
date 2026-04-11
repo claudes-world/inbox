@@ -18,7 +18,13 @@ import {
   threadFixture,
   directoryListFixture,
   directoryShowFixture,
+  directoryMembersFixture,
   deliveryEventListFixture,
+  sendFixture,
+  replyFixture,
+  ackFixture,
+  hideFixture,
+  sentHideFixture,
 } from "@inbox/contracts/fixtures";
 import { listResponseSchema } from "@inbox/contracts";
 import {
@@ -35,7 +41,15 @@ import {
   fetchThread,
   fetchDirectory,
   fetchDirectoryShow,
+  fetchDirectoryMembers,
   fetchEvents,
+  postAck,
+  postHide,
+  postUnhide,
+  postSend,
+  postReply,
+  postSentHide,
+  postSentUnhide,
 } from "../api.js";
 
 // ---------------------------------------------------------------------------
@@ -340,6 +354,12 @@ describe("migrated fetchers — valid path", () => {
     const res = await fetchEvents("pm-alpha@vps-1");
     expect(res).toEqual(deliveryEventListFixture);
   });
+
+  it("fetchDirectoryMembers parses directoryMembersFixture", async () => {
+    mockFetchOnce(directoryMembersFixture);
+    const res = await fetchDirectoryMembers("eng-leads@lists");
+    expect(res).toEqual(directoryMembersFixture);
+  });
 });
 
 describe("migrated fetchers — drift path", () => {
@@ -357,5 +377,232 @@ describe("migrated fetchers — drift path", () => {
     await expect(
       fetchThread("pm-alpha@vps-1", "cnv_001"),
     ).rejects.toMatchObject({ name: "ContractDriftError" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migrated mutation fetchers — happy path (PR follow-up to #118)
+// ---------------------------------------------------------------------------
+//
+// These exercise the parsedPost migration for postAck/postHide/postUnhide,
+// postSend, postReply, and postSentHide/postSentUnhide. For each one we
+// mock a valid BFF response (the canonical fixture) and assert the value
+// parses cleanly through the schema and that the outgoing request used
+// POST with JSON.
+
+describe("migrated mutation fetchers — valid path", () => {
+  it("postAck parses ackFixture and sends POST", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ackFixture,
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await postAck("pm-alpha@vps-1", "msg_ack_001");
+    expect(res).toEqual(ackFixture);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/inbox/msg_ack_001/ack",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("postHide parses hideFixture", async () => {
+    mockFetchOnce(hideFixture);
+    const res = await postHide("pm-alpha@vps-1", "msg_hide_001");
+    expect(res).toEqual(hideFixture);
+  });
+
+  it("postUnhide parses hideFixture (same schema)", async () => {
+    mockFetchOnce(hideFixture);
+    const res = await postUnhide("pm-alpha@vps-1", "msg_hide_001");
+    expect(res).toEqual(hideFixture);
+  });
+
+  it("postSend parses sendFixture and sends validated JSON body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => sendFixture,
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    const payload = {
+      to: "eng-leads@lists",
+      cc: "ceo@org",
+      subject: "Need engineering status",
+      body: "Please send your weekly report by 5pm.",
+    };
+    const res = await postSend("pm-alpha@vps-1", payload);
+    expect(res).toEqual(sendFixture);
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error("expected fetch call");
+    expect(call[0]).toBe("/api/send");
+    const init = call[1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      to: "eng-leads@lists",
+      cc: "ceo@org",
+      subject: "Need engineering status",
+    });
+  });
+
+  it("postReply parses replyFixture", async () => {
+    mockFetchOnce(replyFixture);
+    const res = await postReply("eng-manager@vps-1", "msg_read_001", {
+      body: "Status report attached.",
+    });
+    expect(res).toEqual(replyFixture);
+  });
+
+  it("postSentHide parses sentHideFixture", async () => {
+    mockFetchOnce(sentHideFixture);
+    const res = await postSentHide("pm-alpha@vps-1", "msg_senthide_001");
+    expect(res).toEqual(sentHideFixture);
+  });
+
+  it("postSentUnhide parses sentHideFixture (same schema)", async () => {
+    mockFetchOnce(sentHideFixture);
+    const res = await postSentUnhide("pm-alpha@vps-1", "msg_senthide_001");
+    expect(res).toEqual(sentHideFixture);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migrated mutation fetchers — drift on response
+// ---------------------------------------------------------------------------
+//
+// When the BFF returns a response that doesn't satisfy the response schema
+// (wrong enum, missing required field), the fetcher should throw
+// ContractDriftError and NOT a plain Error or a ZodError leak.
+
+describe("migrated mutation fetchers — drift path", () => {
+  it("postAck drift on wrong view_kind → ContractDriftError", async () => {
+    mockFetchOnce({
+      ok: true,
+      message_id: "msg_ack_001",
+      changed: true,
+      view_kind: "banana",
+      visibility_state: "active",
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      postAck("pm-alpha@vps-1", "msg_ack_001"),
+    ).rejects.toMatchObject({ name: "ContractDriftError" });
+  });
+
+  it("postSend drift on missing resolved_recipient_count → ContractDriftError", async () => {
+    const drifted = { ...sendFixture } as Partial<typeof sendFixture>;
+    delete drifted.resolved_recipient_count;
+    mockFetchOnce(drifted);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      postSend("pm-alpha@vps-1", {
+        to: "eng-leads@lists",
+        body: "hi",
+      }),
+    ).rejects.toMatchObject({ name: "ContractDriftError" });
+  });
+
+  it("postSentHide drift on wrong view_kind → ContractDriftError", async () => {
+    mockFetchOnce({
+      ok: true,
+      message_id: "msg_senthide_001",
+      changed: true,
+      view_kind: "received", // schema locks this to "sent"
+      visibility_state: "hidden",
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      postSentHide("pm-alpha@vps-1", "msg_senthide_001"),
+    ).rejects.toMatchObject({ name: "ContractDriftError" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Client-side request validation (NEW in this PR)
+// ---------------------------------------------------------------------------
+//
+// postSend and postReply run the outgoing payload through
+// sendRequestSchema / replyRequestSchema with `.parse()` before the network
+// roundtrip. A UI bug that constructs a malformed body surfaces as a
+// ZodError BEFORE fetch() is called. This saves a network roundtrip and
+// keeps ContractDriftError reserved for BFF response drift.
+
+describe("client-side request validation", () => {
+  // Zod's ZodError exposes a stable `.name = "ZodError"` and a `.issues`
+  // array. We check those rather than `instanceof ZodError` because the
+  // ZodError class can be realized from different module paths (packages/ui's
+  // own zod dep vs @inbox/contracts's) — same cross-bundle concern that
+  // drove the ContractDriftError `.name` discriminator (Amendment 4).
+  //
+  // We also avoid `rejects.toMatchObject()` on ZodError because vitest's
+  // matcher walks own enumerable properties and ZodError's `.name` /
+  // `.issues` layout across v3 / v4 subpaths isn't stable enough for that.
+  // Plain try/catch + property asserts is the lowest-common-denominator.
+
+  type UnknownPayload = Parameters<typeof postSend>[1];
+
+  async function catchError(fn: () => Promise<unknown>): Promise<unknown> {
+    try {
+      await fn();
+    } catch (err) {
+      return err;
+    }
+    throw new Error("expected function to throw");
+  }
+
+  it("postSend throws ZodError when `to` is missing (no fetch call)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const err = (await catchError(() =>
+      postSend("pm-alpha@vps-1", {
+        subject: "oops",
+        body: "no recipient",
+      } as unknown as UnknownPayload),
+    )) as { name?: string; issues?: Array<{ path: Array<string | number> }> };
+    expect(err.name).toBe("ZodError");
+    expect(err.issues?.some((i) => i.path.includes("to"))).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("postSend throws ZodError when `urgency` is not a valid enum value", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const err = (await catchError(() =>
+      postSend("pm-alpha@vps-1", {
+        to: "eng-leads@lists",
+        urgency: "extreme", // not in urgencySchema
+      }),
+    )) as { name?: string; issues?: Array<{ path: Array<string | number> }> };
+    expect(err.name).toBe("ZodError");
+    expect(err.issues?.some((i) => i.path.includes("urgency"))).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("postReply throws ZodError when `urgency` is invalid (no fetch call)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const err = (await catchError(() =>
+      postReply("pm-alpha@vps-1", "msg_read_001", {
+        body: "hi",
+        urgency: "nuclear",
+      }),
+    )) as { name?: string; issues?: Array<{ path: Array<string | number> }> };
+    expect(err.name).toBe("ZodError");
+    expect(err.issues?.some((i) => i.path.includes("urgency"))).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("postSend request ZodError is NOT a ContractDriftError", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    const err = (await catchError(() =>
+      postSend("pm-alpha@vps-1", {} as unknown as UnknownPayload),
+    )) as { name?: string };
+    // Reserve ContractDriftError for response drift — client-side body
+    // validation must surface as a plain ZodError so observability sinks
+    // don't treat it as a BFF bug.
+    expect(err.name).toBe("ZodError");
+    expect(err.name).not.toBe("ContractDriftError");
   });
 });
