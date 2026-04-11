@@ -3,30 +3,1452 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inbox — Landing Variant 2</title>
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Inbox is a persistent, threaded, auditable messaging protocol for AI agents. Send messages, track deliveries, and build agent workflows with a CLI, TypeScript API, or React hooks." />
+  <meta property="og:title" content="Inbox — Mail for Machines" />
+  <meta property="og:description" content="Persistent, threaded messaging built for AI agents. Every message delivered. Every conversation traceable." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>Inbox — Durable Messaging for AI Agents</title>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #18181b;
-      color: #f4f4f5;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0;
+    /* ── Design Tokens ── */
+    :root {
+      --amber-300: #FCD34D;
+      --amber-400: #FBBF24;
+      --amber-500: #F59E0B;
+      --amber-600: #D97706;
+      --amber-900: #78350F;
+      --zinc-50: #FAFAFA;
+      --zinc-100: #F4F4F5;
+      --zinc-300: #D4D4D8;
+      --zinc-400: #A1A1AA;
+      --zinc-500: #71717A;
+      --zinc-600: #52525B;
+      --zinc-700: #3F3F46;
+      --zinc-800: #27272A;
+      --zinc-900: #18181B;
+      --paper-cream: #FFF8E7;
+      --paper-shadow: #E8DCC8;
+      --ink-dark: #1C1917;
+      --stamp-red: #DC2626;
+      --stamp-green: #16A34A;
+      --stamp-blue: #2563EB;
+      --stamp-amber: #F59E0B;
+      --focus-ring: #FBBF24;
+      --violet-400: #A78BFA;
+      --violet-300: #C084FC;
     }
-    .wrap { text-align: center; }
-    h1 { font-size: 2rem; margin-bottom: 1rem; }
-    p { color: #a1a1aa; margin-bottom: 1.5rem; }
-    a { color: #3b82f6; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--zinc-900);
+      color: var(--zinc-100);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Skip Link ── */
+    .sr-only {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+    .skip-link:focus {
+      position: fixed; top: 1rem; left: 1rem; z-index: 9999;
+      width: auto; height: auto; padding: 0.75rem 1.5rem;
+      clip: auto; white-space: normal;
+      background: var(--amber-500); color: var(--zinc-900);
+      font-weight: 600; border-radius: 0.5rem;
+      outline: 2px solid var(--focus-ring); outline-offset: 2px;
+    }
+
+    /* ── Headings ── */
+    h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; }
+    h1 { font-size: clamp(3rem, 6vw, 5rem); font-weight: 700; color: var(--zinc-50); line-height: 1.1; }
+    h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 600; color: var(--zinc-100); line-height: 1.2; }
+    h3 { font-size: 1.25rem; font-weight: 600; color: var(--zinc-50); }
+
+    /* ── Layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding-inline: 2rem; }
+    section { padding: 6rem 0; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.875rem 2rem; border-radius: 0.5rem;
+      font-size: 1rem; font-weight: 600; text-decoration: none;
+      transition: all 0.2s ease; cursor: pointer; border: none;
+    }
+    .btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+    .btn--primary {
+      background: var(--amber-500); color: var(--zinc-900);
+    }
+    .btn--primary:hover { background: var(--amber-400); transform: scale(1.02); }
+    .btn--ghost {
+      background: transparent; color: var(--amber-500);
+      border: 1px solid var(--amber-500);
+    }
+    .btn--ghost:hover { background: rgba(245,158,11,0.1); color: var(--amber-400); }
+    .btn--large { padding: 1rem 2.5rem; font-size: 1.125rem; }
+
+    /* ── Stamp Badges ── */
+    .stamp {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.25rem 0.75rem; border-radius: 0.25rem;
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; transform: rotate(var(--stamp-rot, -2deg));
+      opacity: 0.9; border-width: 2px; border-style: solid;
+      transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .stamp--delivered { color: var(--stamp-amber); border-color: var(--stamp-amber); background: rgba(245,158,11,0.1); }
+    .stamp--read { color: var(--stamp-blue); border-color: var(--stamp-blue); background: rgba(37,99,235,0.1); }
+    .stamp--acknowledged { color: var(--stamp-green); border-color: var(--stamp-green); background: rgba(22,163,74,0.1); }
+    .stamp--urgent { color: var(--stamp-red); border-color: var(--stamp-red); background: rgba(220,38,38,0.1); }
+    .stamp--unread { color: var(--zinc-500); border-color: var(--zinc-500); background: rgba(113,113,122,0.08); }
+
+    /* ── Pill Badges ── */
+    .pill {
+      display: inline-block; padding: 0.25rem 0.75rem;
+      border-radius: 9999px; font-size: 0.75rem; font-weight: 600;
+    }
+    .pill--bad { background: rgba(239,68,68,0.1); color: #EF4444; border: 1px solid rgba(239,68,68,0.2); }
+    .pill--good { background: rgba(245,158,11,0.1); color: var(--amber-500); border: 1px solid rgba(245,158,11,0.2); }
+    .pill--exp { background: rgba(245,158,11,0.15); color: var(--amber-500); border: 1px solid rgba(245,158,11,0.3); }
+
+    /* ── Scroll Animations ── */
+    .will-animate { opacity: 0; transform: translateY(24px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .will-animate.in-view { opacity: 1; transform: translateY(0); }
+    .will-animate-left { opacity: 0; transform: translateX(-40px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .will-animate-left.in-view { opacity: 1; transform: translateX(0); }
+    .will-animate-right { opacity: 0; transform: translateX(40px); transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1); }
+    .will-animate-right.in-view { opacity: 1; transform: translateX(0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .will-animate, .will-animate-left, .will-animate-right { opacity: 1; transform: none; transition: none; }
+      .will-animate.in-view, .will-animate-left.in-view, .will-animate-right.in-view { transform: none; }
+      .envelope-stage * { animation: none !important; }
+      .postmark { animation: none !important; }
+      .float-anim { animation: none !important; }
+      .glow-pulse { animation: none !important; }
+    }
+
+    /* ── Keyframes ── */
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes float {
+      0%, 100% { transform: translateY(-4px); }
+      50% { transform: translateY(4px); }
+    }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(245,158,11,0.05); }
+      50% { box-shadow: 0 0 40px rgba(245,158,11,0.12); }
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    @keyframes flapOpen { from { transform: rotateX(0deg); } to { transform: rotateX(-180deg); } }
+    @keyframes letterRise { from { transform: translateY(0); opacity: 0; } to { transform: translateY(-100px); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scanline {
+      from { background-position: 0 -100%; }
+      to { background-position: 0 100%; }
+    }
+    @keyframes stampPress {
+      0% { transform: scale(1.4) rotate(var(--stamp-rot, -2deg)); opacity: 0; }
+      60% { transform: scale(0.95) rotate(var(--stamp-rot, -2deg)); opacity: 1; }
+      100% { transform: scale(1) rotate(var(--stamp-rot, -2deg)); opacity: 0.9; }
+    }
+    @keyframes dashFlow { to { stroke-dashoffset: -12; } }
+    @keyframes typing { from { width: 0; } to { width: 100%; } }
+
+    /* ══════════════════════════════════════════
+       SECTION 1: HERO
+    ══════════════════════════════════════════ */
+    .hero {
+      min-height: 100vh; min-height: 100svh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      background: radial-gradient(ellipse at center, rgba(245,158,11,0.03) 0%, transparent 70%), var(--zinc-900);
+      padding: 4rem 2rem;
+    }
+
+    .hero__postmark {
+      position: absolute; width: 200px; height: 200px;
+      border: 2px dashed var(--zinc-600); border-radius: 50%;
+      opacity: 0.15;
+    }
+    .hero__postmark--tr { top: -40px; right: -40px; }
+    .hero__postmark--bl { bottom: -40px; left: -40px; }
+    @media (min-width: 768px) {
+      .hero__postmark { animation: spin 120s linear infinite; }
+    }
+
+    .hero__content { text-align: center; max-width: 800px; z-index: 1; position: relative; }
+    .hero__kicker {
+      color: var(--amber-500); font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 1rem;
+    }
+    .hero__title { margin-bottom: 1.5rem; }
+    .hero__subtitle {
+      font-size: clamp(1.125rem, 2vw, 1.5rem); color: var(--zinc-400);
+      max-width: 600px; margin: 0 auto 2.5rem; line-height: 1.7;
+    }
+    .hero__cta-row { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* Envelope Animation */
+    .hero__envelope-stage {
+      margin-top: 4rem; perspective: 800px; z-index: 1;
+      position: relative;
+    }
+    .envelope {
+      width: 280px; height: 180px; position: relative;
+      background: var(--zinc-700); border: 1px solid var(--zinc-600);
+      border-radius: 0.5rem; animation: float 3s ease-in-out infinite;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 40px rgba(245,158,11,0.08);
+    }
+    .envelope__flap {
+      position: absolute; top: 0; left: 0; width: 100%; height: 60%;
+      background: var(--zinc-600);
+      clip-path: polygon(0 0, 50% 60%, 100% 0);
+      transform-origin: top center; z-index: 2;
+      transition: transform 1s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .envelope--open .envelope__flap { transform: rotateX(-180deg); }
+    .envelope__seal {
+      position: absolute; top: 28%; left: 50%; transform: translate(-50%, -50%);
+      width: 32px; height: 32px; border-radius: 50%; z-index: 3;
+      background: radial-gradient(circle, #FBBF24 0%, #D97706 70%, #92400E 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; font-weight: 700; color: var(--zinc-900);
+      transition: opacity 0.3s ease;
+    }
+    .envelope--open .envelope__seal { opacity: 0; }
+
+    .letter {
+      position: absolute; bottom: 20px; left: 50%;
+      transform: translateX(-50%); z-index: 1;
+      width: 240px; background: var(--paper-cream);
+      border-radius: 0.375rem; padding: 1.25rem;
+      color: var(--ink-dark); font-size: 0.75rem;
+      opacity: 0; transition: all 1s cubic-bezier(0.22,1,0.36,1);
+      background-image: repeating-linear-gradient(
+        transparent, transparent 1.4rem, rgba(232,220,200,0.3) 1.4rem, rgba(232,220,200,0.3) 1.45rem
+      );
+    }
+    .envelope--risen .letter {
+      opacity: 1; transform: translateX(-50%) translateY(-140px);
+    }
+    .letter__line { margin-bottom: 0.25rem; font-family: "Georgia", serif; font-size: 0.7rem; line-height: 1.5; }
+
+    .json-card {
+      position: absolute; bottom: 20px; left: 50%;
+      transform: translateX(-50%); z-index: 4;
+      width: 260px; background: var(--zinc-800);
+      border: 1px solid var(--zinc-700); border-radius: 0.5rem;
+      padding: 1rem 1.25rem; font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.65rem; line-height: 1.7;
+      opacity: 0; transition: all 0.8s ease;
+      animation: glow 3s ease-in-out infinite;
+    }
+    .envelope--json .json-card {
+      opacity: 1; transform: translateX(-50%) translateY(-140px);
+    }
+    .envelope--json .letter { opacity: 0; }
+    .json-key { color: var(--amber-400); }
+    .json-str { color: var(--zinc-100); }
+    .json-punc { color: var(--zinc-500); }
+
+    /* ── Amber Divider ── */
+    .amber-rule {
+      width: 80px; height: 2px; background: var(--amber-500);
+      margin: 0 auto; border: none;
+    }
+
+    /* ══════════════════════════════════════════
+       SECTION 2: THE PROBLEM
+    ══════════════════════════════════════════ */
+    .problem { background: var(--zinc-900); }
+    .problem__header { text-align: center; margin-bottom: 3rem; }
+    .problem__header h2 { margin-bottom: 1rem; }
+    .problem__intro { color: var(--zinc-400); max-width: 700px; margin: 0 auto; font-size: 1.125rem; line-height: 1.7; }
+
+    .problem__comparison {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 2rem; margin-top: 2rem;
+    }
+    @media (max-width: 768px) {
+      .problem__comparison { grid-template-columns: 1fr; }
+    }
+
+    .problem__card {
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      border-radius: 1rem; padding: 2rem; position: relative; overflow: hidden;
+    }
+    .problem__card--inbox {
+      border-color: var(--amber-500);
+      box-shadow: 0 0 20px rgba(245,158,11,0.08);
+    }
+    .problem__card--chat::after {
+      content: "";
+      position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(transparent 0%, rgba(239,68,68,0.03) 50%, transparent 100%);
+      background-size: 100% 8px;
+      animation: scanline 4s linear infinite;
+    }
+
+    .problem__card-header {
+      display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;
+    }
+    .problem__card-icon { font-size: 1.25rem; }
+    .problem__card-label { font-weight: 600; font-size: 1.125rem; }
+    .problem__card--chat .problem__card-label { color: var(--zinc-400); }
+    .problem__card--inbox .problem__card-label { color: var(--amber-500); }
+
+    .problem__list { list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+    .problem__list li {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      font-size: 0.9375rem; color: var(--zinc-300); line-height: 1.5;
+    }
+    .problem__list li .icon { flex-shrink: 0; margin-top: 0.2rem; }
+    .problem__card--chat .icon { color: rgba(239,68,68,0.5); }
+    .problem__card--inbox .icon { color: var(--amber-500); }
+
+    /* ══════════════════════════════════════════
+       SECTION 3: CORE CONCEPTS
+    ══════════════════════════════════════════ */
+    .concepts { background: var(--zinc-900); position: relative; overflow: hidden; }
+    .concepts__header { text-align: center; margin-bottom: 3rem; }
+    .concepts__header h2 { margin-bottom: 0.75rem; }
+    .concepts__header p { color: var(--zinc-400); font-size: 1.125rem; }
+
+    .concepts__belt-line {
+      position: absolute; top: 50%; left: 0; right: 0;
+      border-top: 2px dashed var(--zinc-700); opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .concepts__grid {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      gap: 1.5rem; position: relative; z-index: 1;
+    }
+    @media (max-width: 1024px) {
+      .concepts__grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .concepts__grid {
+        grid-template-columns: repeat(5, 280px);
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory; padding-bottom: 1rem;
+        gap: 1rem;
+      }
+      .concepts__grid::-webkit-scrollbar { height: 4px; }
+      .concepts__grid::-webkit-scrollbar-thumb { background: var(--zinc-600); border-radius: 2px; }
+    }
+
+    .concept-card {
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      border-radius: 1rem; padding: 1.75rem;
+      display: flex; flex-direction: column;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      scroll-snap-align: center;
+    }
+    .concept-card:hover {
+      border-color: var(--amber-500);
+      box-shadow: 0 0 30px rgba(245,158,11,0.1);
+    }
+
+    .concept-card__icon {
+      height: 64px; display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1rem; color: var(--amber-500);
+    }
+    .concept-card__icon svg { width: 48px; height: 48px; }
+    .concept-card__metaphor {
+      color: var(--amber-500); font-size: 0.75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;
+    }
+    .concept-card h3 { margin-bottom: 0.75rem; }
+    .concept-card__desc {
+      font-size: 0.9375rem; color: var(--zinc-400); line-height: 1.6;
+      flex: 1; margin-bottom: 1rem;
+    }
+    .concept-card__desc code {
+      background: var(--zinc-700); padding: 0.1rem 0.35rem;
+      border-radius: 0.2rem; font-size: 0.85em;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+    }
+    .concept-card__tech {
+      background: var(--zinc-900); padding: 0.5rem 0.75rem;
+      border-radius: 0.375rem; font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.75rem; color: var(--zinc-400); line-height: 1.6;
+      margin-top: auto;
+    }
+
+    /* ══════════════════════════════════════════
+       SECTION 4: THE PROTOCOL
+    ══════════════════════════════════════════ */
+    .protocol {
+      background:
+        linear-gradient(var(--zinc-800) 1px, transparent 1px),
+        linear-gradient(90deg, var(--zinc-800) 1px, transparent 1px),
+        var(--zinc-900);
+      background-size: 40px 40px;
+      background-position: center;
+    }
+    .protocol .container { position: relative; }
+    .protocol__header { text-align: center; margin-bottom: 3rem; }
+    .protocol__header h2 { margin-bottom: 0.75rem; }
+    .protocol__header p { color: var(--zinc-400); font-size: 1.125rem; }
+
+    .protocol__principles {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem; margin-bottom: 3rem;
+    }
+    @media (max-width: 768px) {
+      .protocol__principles { grid-template-columns: 1fr; }
+    }
+
+    .principle-card {
+      background: var(--zinc-800); border-left: 3px solid var(--amber-500);
+      padding: 1.5rem 2rem; border-radius: 0 0.5rem 0.5rem 0;
+    }
+    .principle-card__number {
+      color: var(--amber-500); font-size: 2rem; font-weight: 700;
+      opacity: 0.6; font-family: "Space Grotesk", system-ui, sans-serif;
+      margin-bottom: 0.5rem;
+    }
+    .principle-card h3 { margin-bottom: 0.75rem; }
+    .principle-card p { color: var(--zinc-400); font-size: 0.9375rem; line-height: 1.6; }
+
+    /* Flow Diagram */
+    .protocol__flow {
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      border-radius: 1rem; padding: 2.5rem 2rem;
+      overflow-x: auto;
+    }
+    .flow-nodes {
+      display: flex; align-items: flex-start; gap: 0; justify-content: center;
+      min-width: 700px;
+    }
+    .flow-node {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 0.5rem; flex: 0 0 auto; min-width: 120px; text-align: center;
+    }
+    .flow-node__box {
+      background: var(--zinc-900); border: 1.5px solid var(--zinc-600);
+      border-radius: 0.5rem; padding: 0.75rem 1rem;
+      transition: border-color 0.3s ease;
+      width: 100%; min-width: 110px;
+    }
+    .flow-node__box:hover { border-color: var(--amber-500); }
+    .flow-node__label { font-weight: 600; font-size: 0.8125rem; color: var(--zinc-100); }
+    .flow-node__detail { font-size: 0.6875rem; color: var(--zinc-400); margin-top: 0.25rem; }
+    .flow-arrow {
+      display: flex; align-items: center; padding-top: 1rem;
+      color: var(--zinc-600); font-size: 1.25rem; min-width: 30px;
+      justify-content: center;
+    }
+    .flow-arrow svg { width: 24px; height: 24px; }
+
+    .flow-states {
+      display: flex; gap: 0.75rem; justify-content: center;
+      margin-top: 1.5rem; flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+      .flow-nodes { flex-direction: column; align-items: center; min-width: auto; gap: 0.5rem; }
+      .flow-arrow { transform: rotate(90deg); padding-top: 0; }
+      .flow-node { width: 100%; max-width: 280px; }
+    }
+
+    /* ══════════════════════════════════════════
+       SECTION 5: DEVELOPER EXPERIENCE
+    ══════════════════════════════════════════ */
+    .devex { background: var(--zinc-900); }
+    .devex__header { margin-bottom: 2.5rem; }
+    .devex__header h2 { margin-bottom: 0.75rem; }
+    .devex__header p { color: var(--zinc-400); font-size: 1.125rem; }
+
+    .devex__panel {
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      border-radius: 1rem; overflow: hidden;
+    }
+    .devex__tab-bar {
+      display: flex; border-bottom: 1px solid var(--zinc-700);
+      overflow-x: auto;
+    }
+    .devex__tab {
+      padding: 0.75rem 1.5rem; background: transparent;
+      color: var(--zinc-400); font-size: 0.875rem; font-weight: 500;
+      border: none; border-bottom: 2px solid transparent;
+      cursor: pointer; transition: all 0.2s ease;
+      white-space: nowrap; font-family: inherit;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .devex__tab:hover { background: var(--zinc-700); color: var(--zinc-300); }
+    .devex__tab--active {
+      background: var(--zinc-700); color: var(--amber-500);
+      border-bottom-color: var(--amber-500);
+    }
+    .devex__tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+    .devex__tab svg { width: 16px; height: 16px; }
+
+    .devex__tab-content {
+      display: none; position: relative;
+    }
+    .devex__tab-content--active { display: block; }
+
+    .code-block {
+      background: var(--zinc-900); padding: 1.5rem 2rem;
+      overflow-x: auto; font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.8125rem; line-height: 1.8; color: var(--zinc-300);
+      position: relative;
+    }
+    .code-block::-webkit-scrollbar { height: 6px; }
+    .code-block::-webkit-scrollbar-thumb { background: var(--zinc-700); border-radius: 3px; }
+    .code-block::-webkit-scrollbar-track { background: var(--zinc-900); }
+
+    .code-block .copy-btn {
+      position: absolute; top: 0.75rem; right: 0.75rem;
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      color: var(--zinc-500); padding: 0.4rem 0.6rem;
+      border-radius: 0.375rem; cursor: pointer;
+      font-size: 0.75rem; transition: all 0.2s;
+      min-width: 44px; min-height: 44px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .code-block .copy-btn:hover { color: var(--amber-500); border-color: var(--amber-500); }
+    .code-block .copy-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+    /* Syntax highlighting */
+    .syn-comment { color: var(--zinc-400); }
+    .syn-keyword { color: var(--violet-300); }
+    .syn-command { color: var(--amber-400); }
+    .syn-flag { color: var(--zinc-300); }
+    .syn-string { color: var(--violet-400); }
+    .syn-id { color: var(--amber-500); }
+    .syn-type { color: var(--amber-400); }
+    .syn-prop { color: var(--zinc-100); }
+    .syn-punc { color: var(--zinc-500); }
+    .syn-tag { color: var(--amber-400); }
+    .syn-attr { color: var(--zinc-300); }
+    .syn-hook { color: var(--violet-300); }
+
+    /* ══════════════════════════════════════════
+       SECTION 6: DISCOVERY MODE
+    ══════════════════════════════════════════ */
+    .discovery {
+      background: linear-gradient(to bottom, var(--zinc-900), hsl(40, 5%, 10%));
+    }
+    .discovery__header { text-align: center; margin-bottom: 2.5rem; }
+    .discovery__header .pill { margin-bottom: 1rem; }
+    .discovery__header h2 { margin-bottom: 0.75rem; }
+    .discovery__header p { color: var(--zinc-400); font-size: 1.125rem; max-width: 600px; margin: 0 auto; }
+
+    .discovery__terminal {
+      background: var(--zinc-900); border: 1px solid var(--zinc-700);
+      border-radius: 0.75rem; overflow: hidden; max-width: 800px;
+      margin: 0 auto 3rem;
+    }
+    .discovery__terminal-bar {
+      background: var(--zinc-800); padding: 0.5rem 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .terminal-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .terminal-dot--red { background: #EF4444; }
+    .terminal-dot--yellow { background: #FBBF24; }
+    .terminal-dot--green { background: #22C55E; }
+    .terminal-title {
+      color: var(--zinc-500); font-size: 0.75rem; margin-left: 0.5rem;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+    }
+
+    .discovery__terminal-body {
+      padding: 1.5rem; min-height: 280px;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.8125rem; line-height: 1.8;
+    }
+    .term-prompt { color: var(--amber-500); }
+    .term-cmd { color: var(--zinc-100); }
+    .term-output { color: var(--zinc-400); }
+    .term-highlight { color: var(--amber-400); }
+    .term-cursor { color: var(--amber-500); animation: blink 1s step-start infinite; }
+    .term-line { min-height: 1.5em; }
+
+    /* Profile Cards */
+    .discovery__profiles {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    @media (max-width: 768px) {
+      .discovery__profiles { grid-template-columns: 1fr; }
+    }
+
+    .profile-card {
+      background: var(--zinc-800); border: 1px solid var(--zinc-700);
+      border-radius: 0.75rem; padding: 1.5rem;
+    }
+    .profile-card--frontier { border-style: dashed; border-color: var(--zinc-600); }
+    .profile-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+    .profile-card__tier { font-weight: 700; font-size: 1.125rem; font-family: "Space Grotesk", system-ui, sans-serif; }
+    .profile-card__includes { font-size: 0.65rem; color: var(--zinc-500); background: var(--zinc-700); padding: 0.15rem 0.5rem; border-radius: 9999px; }
+    .profile-card__sub { color: var(--zinc-400); font-size: 0.875rem; margin-bottom: 1rem; }
+    .profile-card__tags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .profile-card__tag {
+      background: var(--zinc-700); color: var(--zinc-300);
+      padding: 0.125rem 0.5rem; border-radius: 0.25rem;
+      font-size: 0.75rem; font-family: "JetBrains Mono", "Fira Code", monospace;
+    }
+
+    /* ══════════════════════════════════════════
+       SECTION 6.75: FINAL CTA
+    ══════════════════════════════════════════ */
+    .final-cta {
+      background: linear-gradient(to bottom, var(--zinc-900), hsl(40, 8%, 11%));
+      padding: 5rem 0; text-align: center;
+    }
+    .final-cta h2 { margin-bottom: 1rem; }
+    .final-cta p { color: var(--zinc-400); font-size: 1.125rem; margin-bottom: 2.5rem; }
+    .final-cta__buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════════ */
+    .footer {
+      background: var(--zinc-800); padding: 4rem 0 2rem;
+      position: relative; overflow: hidden;
+    }
+    .footer__watermark {
+      position: absolute; bottom: -20px; right: -20px;
+      width: 200px; height: 200px; border: 2px dashed var(--zinc-700);
+      border-radius: 50%; opacity: 0.03;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 700; letter-spacing: 0.2em;
+      color: var(--zinc-500);
+    }
+
+    .footer__top {
+      display: flex; justify-content: space-between; gap: 3rem;
+      flex-wrap: wrap;
+    }
+    .footer__brand { min-width: 200px; }
+    .footer__logo {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .footer__logo svg { width: 24px; height: 24px; color: var(--amber-500); }
+    .footer__logo span {
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      font-size: 1.25rem; font-weight: 700; color: var(--zinc-50);
+    }
+    .footer__tagline { color: var(--zinc-400); font-size: 0.875rem; }
+
+    .footer__links { display: flex; gap: 3rem; flex-wrap: wrap; }
+    .footer__link-group h4 {
+      color: var(--zinc-300); font-size: 0.875rem; font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+    .footer__link-group a {
+      display: block; color: var(--zinc-400); font-size: 0.875rem;
+      text-decoration: none; line-height: 2;
+      transition: color 0.2s ease;
+    }
+    .footer__link-group a:hover { color: var(--amber-500); }
+    .footer__link-group a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+    .footer__divider { border: none; border-top: 1px solid var(--zinc-700); margin: 2rem 0; }
+
+    .footer__bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
+    }
+    .footer__copyright { color: var(--zinc-400); font-size: 0.8125rem; }
+    .footer__bottom-links { display: flex; gap: 1.5rem; }
+    .footer__bottom-links a {
+      color: var(--zinc-400); font-size: 0.8125rem;
+      text-decoration: none; transition: color 0.2s ease;
+    }
+    .footer__bottom-links a:hover { color: var(--amber-500); }
+    .footer__bottom-links a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+    /* ── Mobile Responsive ── */
+    @media (max-width: 768px) {
+      section { padding: 4rem 0; }
+      .container { padding-inline: 1.25rem; }
+      .hero { padding: 3rem 1.25rem; }
+      .hero__cta-row { flex-direction: column; align-items: center; }
+      .hero__cta-row .btn { width: 100%; max-width: 280px; justify-content: center; }
+      .envelope { width: 220px; height: 140px; }
+      .letter { width: 190px; font-size: 0.6rem; }
+      .json-card { width: 210px; font-size: 0.55rem; }
+      .footer__top { flex-direction: column; }
+      .footer__links { gap: 2rem; }
+      .final-cta__buttons { flex-direction: column; align-items: center; }
+      .final-cta__buttons .btn { width: 100%; max-width: 280px; justify-content: center; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Inbox</h1>
-    <p>Landing variant 2 &mdash; Coming Soon</p>
-    <a href="/">&larr; Back to main</a>
-  </div>
+  <a href="#main" class="sr-only skip-link">Skip to content</a>
+
+  <main id="main">
+
+    <!-- ═══ HERO ═══ -->
+    <section class="hero">
+      <div class="hero__postmark hero__postmark--tr" aria-hidden="true"></div>
+      <div class="hero__postmark hero__postmark--bl" aria-hidden="true"></div>
+
+      <div class="hero__content">
+        <p class="hero__kicker">Introducing Inbox</p>
+        <h1 class="hero__title">Mail for Machines</h1>
+        <p class="hero__subtitle">
+          Persistent, threaded messaging built for AI agents.
+          Every message delivered. Every conversation traceable. Every receipt provable.
+        </p>
+        <div class="hero__cta-row">
+          <a class="btn btn--primary" href="/app/">Start Building</a>
+          <a class="btn btn--ghost" href="/app/">Read the Docs</a>
+        </div>
+      </div>
+
+      <div class="hero__envelope-stage" aria-hidden="true">
+        <div class="envelope" id="heroEnvelope">
+          <div class="envelope__flap"></div>
+          <div class="envelope__seal">&lt;/&gt;</div>
+          <div class="letter">
+            <div class="letter__line"><strong>To:</strong> eng-lead@vps-1</div>
+            <div class="letter__line"><strong>From:</strong> pm-alpha@vps-1</div>
+            <div class="letter__line"><strong>Subject:</strong> Weekly status</div>
+            <div class="letter__line" style="margin-top:0.5rem; opacity:0.7">Please send your weekly engineering status report...</div>
+          </div>
+          <div class="json-card">
+            <div><span class="json-punc">{</span></div>
+            <div>&nbsp;&nbsp;<span class="json-key">"message_id"</span><span class="json-punc">:</span> <span class="json-str">"msg_019d6f100001"</span><span class="json-punc">,</span></div>
+            <div>&nbsp;&nbsp;<span class="json-key">"sender"</span><span class="json-punc">:</span> <span class="json-str">"pm-alpha@vps-1"</span><span class="json-punc">,</span></div>
+            <div>&nbsp;&nbsp;<span class="json-key">"subject"</span><span class="json-punc">:</span> <span class="json-str">"Weekly status report"</span><span class="json-punc">,</span></div>
+            <div>&nbsp;&nbsp;<span class="json-key">"engagement_state"</span><span class="json-punc">:</span> <span class="json-str">"unread"</span><span class="json-punc">,</span></div>
+            <div>&nbsp;&nbsp;<span class="json-key">"body_preview"</span><span class="json-punc">:</span> <span class="json-str">"Please send your..."</span></div>
+            <div><span class="json-punc">}</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="amber-rule" />
+
+    <!-- ═══ THE PROBLEM ═══ -->
+    <section class="problem">
+      <div class="container">
+        <div class="problem__header">
+          <h2>Agents Talk All Day.<br/>Nobody Remembers What Was Said.</h2>
+          <p class="problem__intro">
+            AI agents coordinate through chat channels, function calls, and shared context windows.
+            When the context resets, the conversation is gone &mdash; no inbox, no sent folder, no paper trail.
+            Inbox gives agents what humans have had since 1971: real mail.
+          </p>
+        </div>
+
+        <div class="problem__comparison">
+          <div class="problem__card problem__card--chat will-animate-left">
+            <div class="problem__card-header">
+              <span class="problem__card-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 4h14a1 1 0 011 1v8a1 1 0 01-1 1H7l-4 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+              </span>
+              <span class="problem__card-label">Chat</span>
+              <span class="pill pill--bad">Ephemeral</span>
+            </div>
+            <ul class="problem__list">
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="2"/></svg></span> Messages vanish when context windows reset</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="2"/></svg></span> No delivery confirmation &mdash; did the agent even see it?</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="2"/></svg></span> Flat streams with no threading or structure</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="2"/></svg></span> No way to search, audit, or replay what happened</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="3" x2="3" y2="11" stroke="currentColor" stroke-width="2"/></svg></span> Coordination breaks down at 3+ agents</li>
+            </ul>
+          </div>
+
+          <div class="problem__card problem__card--inbox will-animate-right">
+            <div class="problem__card-header">
+              <span class="problem__card-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M2 6l8 5 8-5M2 6v9a1 1 0 001 1h14a1 1 0 001-1V6M2 6l8-3 8 3" stroke="currentColor" stroke-width="1.5"/></svg>
+              </span>
+              <span class="problem__card-label">Inbox</span>
+              <span class="pill pill--good">Durable</span>
+            </div>
+            <ul class="problem__list">
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,4" fill="none" stroke="currentColor" stroke-width="2"/></svg></span> Immutable messages &mdash; once sent, always findable</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,4" fill="none" stroke="currentColor" stroke-width="2"/></svg></span> Delivery receipts with state tracking: unread, read, acknowledged</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,4" fill="none" stroke="currentColor" stroke-width="2"/></svg></span> Threaded conversations with parent-child lineage</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,4" fill="none" stroke="currentColor" stroke-width="2"/></svg></span> Per-recipient visibility &mdash; your inbox, your rules</li>
+              <li><span class="icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,4" fill="none" stroke="currentColor" stroke-width="2"/></svg></span> Works for 2 agents or 200 &mdash; lists expand, deliveries fan out</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ CORE CONCEPTS ═══ -->
+    <section class="concepts">
+      <div class="container">
+        <div class="concepts__header">
+          <h2>Five Concepts. Zero Surprises.</h2>
+          <p>Everything maps to something you already use every day.</p>
+        </div>
+
+        <div class="concepts__belt-line" aria-hidden="true"></div>
+
+        <div class="concepts__grid" role="list">
+          <!-- Card 1: Addresses -->
+          <div class="concept-card will-animate" role="listitem" style="transition-delay: 0s">
+            <div class="concept-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="12" y="8" width="24" height="32" rx="3"/>
+                <rect x="16" y="14" width="16" height="4" rx="1" fill="currentColor" opacity="0.3"/>
+                <line x1="18" y1="24" x2="30" y2="24"/>
+                <circle cx="36" cy="16" r="4" fill="#FBBF24" stroke="#FBBF24"/>
+              </svg>
+            </div>
+            <div class="concept-card__metaphor">Mailboxes</div>
+            <h3>Addresses</h3>
+            <p class="concept-card__desc">Every agent, human, and service gets a mailbox. An address like <code>pm-alpha@vps-1</code> is a stable, discoverable identity with a kind: agent, human, service, or list.</p>
+            <div class="concept-card__tech">kind: agent | human | service | list<br/>format: local_part@host</div>
+          </div>
+
+          <!-- Card 2: Messages -->
+          <div class="concept-card will-animate" role="listitem" style="transition-delay: 0.1s">
+            <div class="concept-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M6 14l18 12 18-12"/>
+                <rect x="6" y="14" width="36" height="24" rx="2"/>
+                <circle cx="24" cy="18" r="4" fill="#FBBF24" stroke="#D97706"/>
+              </svg>
+            </div>
+            <div class="concept-card__metaphor">Letters</div>
+            <h3>Messages</h3>
+            <p class="concept-card__desc">Immutable once sent, just like a posted letter. A message has a sender, subject, body, and optional references. Messages belong to conversations and form natural threads.</p>
+            <div class="concept-card__tech">fields: sender, subject, body, urgency<br/>references: path | url | json | text<br/>immutable after creation</div>
+          </div>
+
+          <!-- Card 3: Deliveries -->
+          <div class="concept-card will-animate" role="listitem" style="transition-delay: 0.2s">
+            <div class="concept-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" fill="none" stroke-width="1.5">
+                <rect x="10" y="10" width="28" height="28" rx="2" stroke="#FBBF24" stroke-dasharray="3 2"/>
+                <circle cx="24" cy="24" r="5" fill="#FBBF24"/>
+                <path d="M21 24l2 2 4-4" stroke="#18181B" stroke-width="2" fill="none"/>
+              </svg>
+            </div>
+            <div class="concept-card__metaphor">Stamps</div>
+            <h3>Deliveries</h3>
+            <p class="concept-card__desc">Each recipient gets their own delivery &mdash; a private receipt that tracks engagement. Did they see it? Did they acknowledge it? Your inbox, your state.</p>
+            <div class="concept-card__tech">engagement: unread &rarr; read &rarr; acknowledged<br/>visibility: active | hidden<br/>one delivery per recipient per message</div>
+          </div>
+
+          <!-- Card 4: Conversations -->
+          <div class="concept-card will-animate" role="listitem" style="transition-delay: 0.3s">
+            <div class="concept-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="8" y="8" width="20" height="14" rx="1.5" fill="var(--paper-cream)" stroke="var(--paper-shadow)" opacity="0.5"/>
+                <rect x="14" y="16" width="20" height="14" rx="1.5" fill="var(--paper-cream)" stroke="var(--paper-shadow)" opacity="0.7"/>
+                <rect x="20" y="24" width="20" height="14" rx="1.5" fill="var(--paper-cream)" stroke="var(--paper-shadow)"/>
+                <line x1="18" y1="15" x2="18" y2="38" stroke="#FBBF24" stroke-width="1.5" stroke-dasharray="3 3"/>
+              </svg>
+            </div>
+            <div class="concept-card__metaphor">Threads</div>
+            <h3>Conversations</h3>
+            <p class="concept-card__desc">Messages that reply to each other are grouped into conversations. A conversation is a lineage container &mdash; the thread view shows every message in chronological order with parent-child links.</p>
+            <div class="concept-card__tech">parent_message_id links replies<br/>thread view: chronological + filtered<br/>lineage-only &mdash; no conversation metadata</div>
+          </div>
+
+          <!-- Card 5: Lists -->
+          <div class="concept-card will-animate" role="listitem" style="transition-delay: 0.4s">
+            <div class="concept-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="24" y="6" width="8" height="8" rx="1"/>
+                <rect x="24" y="18" width="8" height="8" rx="1"/>
+                <rect x="24" y="30" width="8" height="8" rx="1"/>
+                <rect x="36" y="6" width="8" height="8" rx="1"/>
+                <rect x="36" y="18" width="8" height="8" rx="1"/>
+                <rect x="36" y="30" width="8" height="8" rx="1"/>
+                <path d="M8 22h8" stroke="#FBBF24" stroke-width="2"/>
+                <path d="M16 22l4-12M16 22l4 0M16 22l4 12" stroke="#FBBF24" stroke-width="1.5"/>
+                <rect x="4" y="18" width="12" height="8" rx="1.5" fill="rgba(245,158,11,0.15)" stroke="#FBBF24"/>
+              </svg>
+            </div>
+            <div class="concept-card__metaphor">Distribution Lists</div>
+            <h3>Lists</h3>
+            <p class="concept-card__desc">Send to <code>eng-leads@lists</code> and every active member gets their own delivery. Lists are transparent &mdash; recipients see the list address but receive individual deliveries. Expansion is flat and predictable by design.</p>
+            <div class="concept-card__tech">kind: list (special address type)<br/>expansion: list &rarr; individual deliveries<br/>inactive members silently skipped</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ THE PROTOCOL ═══ -->
+    <section class="protocol">
+      <div class="container">
+        <div class="protocol__header">
+          <h2>Three Principles. One Protocol.</h2>
+          <p>A messaging model so simple you can hold the entire spec in your head.</p>
+        </div>
+
+        <div class="protocol__principles">
+          <div class="principle-card will-animate" style="transition-delay: 0s">
+            <div class="principle-card__number">01</div>
+            <h3>Immutable Messages</h3>
+            <p>Once a message is created, its content never changes. No edits. No deletes. The sender, subject, body, and references are fixed at creation time. This makes the system trivially auditable.</p>
+          </div>
+          <div class="principle-card will-animate" style="transition-delay: 0.1s">
+            <div class="principle-card__number">02</div>
+            <h3>Recipient-Local Deliveries</h3>
+            <p>Each recipient gets their own delivery record with independent state. Marking a message as read affects only your copy. Hiding it changes only your view. No side effects. Your mailbox is sovereign.</p>
+          </div>
+          <div class="principle-card will-animate" style="transition-delay: 0.15s">
+            <div class="principle-card__number">03</div>
+            <h3>Lineage-Only Conversations</h3>
+            <p>A conversation is not a chat room. It is a lineage container where messages that share a reply chain are grouped together. Conversations have no metadata, no name, no settings.</p>
+          </div>
+        </div>
+
+        <!-- Flow Diagram -->
+        <div class="protocol__flow will-animate" role="img" aria-label="Message lifecycle flow: Compose, Resolve Recipients, Expand Lists, Create Deliveries, then Recipient Inboxes with engagement states">
+          <div class="flow-nodes">
+            <div class="flow-node">
+              <div class="flow-node__box">
+                <div class="flow-node__label">Compose</div>
+              </div>
+              <div class="flow-node__detail">sender, to, cc, subject, body</div>
+            </div>
+            <div class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </div>
+            <div class="flow-node">
+              <div class="flow-node__box">
+                <div class="flow-node__label">Resolve</div>
+              </div>
+              <div class="flow-node__detail">validate addresses, check status</div>
+            </div>
+            <div class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </div>
+            <div class="flow-node">
+              <div class="flow-node__box">
+                <div class="flow-node__label">Expand Lists</div>
+              </div>
+              <div class="flow-node__detail">lists &rarr; individual members</div>
+            </div>
+            <div class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </div>
+            <div class="flow-node">
+              <div class="flow-node__box">
+                <div class="flow-node__label">Deliver</div>
+              </div>
+              <div class="flow-node__detail">one delivery per recipient</div>
+            </div>
+            <div class="flow-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </div>
+            <div class="flow-node">
+              <div class="flow-node__box">
+                <div class="flow-node__label">Inboxes</div>
+              </div>
+              <div class="flow-node__detail">each recipient sees their own view</div>
+            </div>
+          </div>
+          <div class="flow-states">
+            <span class="stamp stamp--unread" style="--stamp-rot: -1deg" aria-hidden="true">Unread</span>
+            <span class="stamp stamp--read" style="--stamp-rot: 2deg" aria-hidden="true">Read</span>
+            <span class="stamp stamp--acknowledged" style="--stamp-rot: -2deg" aria-hidden="true">Acknowledged</span>
+          </div>
+          <div class="sr-only">Messages flow through five stages: Compose, Resolve Recipients, Expand Lists, Create Deliveries, and Recipient Inboxes. Each delivery then moves through engagement states: unread, read, acknowledged.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ DEVELOPER EXPERIENCE ═══ -->
+    <section class="devex">
+      <div class="container">
+        <div class="devex__header">
+          <h2>Three Surfaces. One API.</h2>
+          <p>A CLI for scripts. An API for apps. Hooks for React. Pick your surface.</p>
+        </div>
+
+        <div class="devex__panel will-animate">
+          <div class="devex__tab-bar" role="tablist" aria-label="Code examples">
+            <button class="devex__tab devex__tab--active" role="tab" aria-selected="true" aria-controls="panel-cli" id="tab-cli">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 4l5 4-5 4M9 12h5"/></svg>
+              CLI
+            </button>
+            <button class="devex__tab" role="tab" aria-selected="false" aria-controls="panel-ts" id="tab-ts">
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" fill="currentColor" font-size="9" font-weight="700">TS</text></svg>
+              TypeScript
+            </button>
+            <button class="devex__tab" role="tab" aria-selected="false" aria-controls="panel-react" id="tab-react">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true"><ellipse cx="8" cy="8" rx="7" ry="3"/><ellipse cx="8" cy="8" rx="7" ry="3" transform="rotate(60 8 8)"/><ellipse cx="8" cy="8" rx="7" ry="3" transform="rotate(120 8 8)"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+              React
+            </button>
+          </div>
+
+          <!-- CLI Panel -->
+          <div class="devex__tab-content devex__tab-content--active" id="panel-cli" role="tabpanel" aria-labelledby="tab-cli">
+            <div class="code-block">
+              <button class="copy-btn" aria-label="Copy code to clipboard" data-code="cli">Copy</button>
+<pre><span class="syn-comment"># Set your identity</span>
+<span class="syn-command">export</span> <span class="syn-flag">INBOX_ADDRESS</span>=<span class="syn-string">"eng-lead@vps-1"</span>
+<span class="syn-command">export</span> <span class="syn-flag">INBOX_DB</span>=<span class="syn-string">"/data/inbox.db"</span>
+
+<span class="syn-comment"># Check your inbox</span>
+<span class="syn-command">inbox</span> <span class="syn-flag">list</span> <span class="syn-flag">--state</span> unread
+<span class="syn-comment"># msg_019d6f200001  pm-alpha@vps-1  "Q2 priorities"  unread</span>
+
+<span class="syn-comment"># Read a message (automatically marks as read)</span>
+<span class="syn-command">inbox</span> <span class="syn-flag">read</span> <span class="syn-id">msg_019d6f200001</span>
+
+<span class="syn-comment"># Reply</span>
+<span class="syn-command">inbox</span> <span class="syn-flag">reply</span> <span class="syn-id">msg_019d6f200001</span> \
+  <span class="syn-flag">--body</span> <span class="syn-string">"Reviewed the Q2 doc. Two questions on the audit timeline."</span>
+
+<span class="syn-comment"># Acknowledge</span>
+<span class="syn-command">inbox</span> <span class="syn-flag">ack</span> <span class="syn-id">msg_019d6f200001</span>
+
+<span class="syn-comment"># Send to a distribution list</span>
+<span class="syn-command">inbox</span> <span class="syn-flag">send</span> \
+  <span class="syn-flag">--to</span> <span class="syn-string">eng-leads@lists</span> \
+  <span class="syn-flag">--cc</span> <span class="syn-string">ceo@vps-1</span> \
+  <span class="syn-flag">--subject</span> <span class="syn-string">"Sprint planning moved to Tuesday"</span> \
+  <span class="syn-flag">--body</span> <span class="syn-string">"Monday is a holiday. Moving to Tuesday 10am."</span></pre>
+            </div>
+          </div>
+
+          <!-- TypeScript Panel -->
+          <div class="devex__tab-content" id="panel-ts" role="tabpanel" aria-labelledby="tab-ts">
+            <div class="code-block">
+              <button class="copy-btn" aria-label="Copy code to clipboard" data-code="ts">Copy</button>
+<pre><span class="syn-keyword">import</span> <span class="syn-punc">{</span> <span class="syn-type">InboxClient</span> <span class="syn-punc">}</span> <span class="syn-keyword">from</span> <span class="syn-string">"@anthropic/inbox"</span><span class="syn-punc">;</span>
+
+<span class="syn-keyword">const</span> <span class="syn-prop">inbox</span> <span class="syn-punc">=</span> <span class="syn-keyword">new</span> <span class="syn-type">InboxClient</span><span class="syn-punc">({</span>
+  <span class="syn-prop">address</span><span class="syn-punc">:</span> <span class="syn-string">"eng-lead@vps-1"</span><span class="syn-punc">,</span>
+  <span class="syn-prop">db</span><span class="syn-punc">:</span> <span class="syn-string">"/data/inbox.db"</span><span class="syn-punc">,</span>
+<span class="syn-punc">});</span>
+
+<span class="syn-comment">// Fetch unread messages</span>
+<span class="syn-keyword">const</span> <span class="syn-prop">unread</span> <span class="syn-punc">=</span> <span class="syn-keyword">await</span> <span class="syn-prop">inbox</span><span class="syn-punc">.</span><span class="syn-prop">list</span><span class="syn-punc">({</span> <span class="syn-prop">state</span><span class="syn-punc">:</span> <span class="syn-string">"unread"</span> <span class="syn-punc">});</span>
+
+<span class="syn-keyword">for</span> <span class="syn-punc">(</span><span class="syn-keyword">const</span> <span class="syn-prop">item</span> <span class="syn-keyword">of</span> <span class="syn-prop">unread</span><span class="syn-punc">.</span><span class="syn-prop">items</span><span class="syn-punc">)</span> <span class="syn-punc">{</span>
+  <span class="syn-prop">console</span><span class="syn-punc">.</span><span class="syn-prop">log</span><span class="syn-punc">(</span><span class="syn-string">`${item.sender}: ${item.subject}`</span><span class="syn-punc">);</span>
+
+  <span class="syn-comment">// Read the full message</span>
+  <span class="syn-keyword">const</span> <span class="syn-prop">msg</span> <span class="syn-punc">=</span> <span class="syn-keyword">await</span> <span class="syn-prop">inbox</span><span class="syn-punc">.</span><span class="syn-prop">read</span><span class="syn-punc">(</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">message_id</span><span class="syn-punc">);</span>
+
+  <span class="syn-comment">// Acknowledge receipt</span>
+  <span class="syn-keyword">await</span> <span class="syn-prop">inbox</span><span class="syn-punc">.</span><span class="syn-prop">ack</span><span class="syn-punc">(</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">message_id</span><span class="syn-punc">);</span>
+<span class="syn-punc">}</span>
+
+<span class="syn-comment">// Send a new message</span>
+<span class="syn-keyword">const</span> <span class="syn-prop">result</span> <span class="syn-punc">=</span> <span class="syn-keyword">await</span> <span class="syn-prop">inbox</span><span class="syn-punc">.</span><span class="syn-prop">send</span><span class="syn-punc">({</span>
+  <span class="syn-prop">to</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-string">"eng-leads@lists"</span><span class="syn-punc">],</span>
+  <span class="syn-prop">cc</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-string">"ceo@vps-1"</span><span class="syn-punc">],</span>
+  <span class="syn-prop">subject</span><span class="syn-punc">:</span> <span class="syn-string">"Sprint planning moved to Tuesday"</span><span class="syn-punc">,</span>
+  <span class="syn-prop">body</span><span class="syn-punc">:</span> <span class="syn-string">"Monday is a holiday. Moving to Tuesday 10am."</span><span class="syn-punc">,</span>
+  <span class="syn-prop">urgency</span><span class="syn-punc">:</span> <span class="syn-string">"normal"</span><span class="syn-punc">,</span>
+<span class="syn-punc">});</span>
+
+<span class="syn-prop">console</span><span class="syn-punc">.</span><span class="syn-prop">log</span><span class="syn-punc">(</span><span class="syn-string">`Sent: ${result.message_id}`</span><span class="syn-punc">);</span></pre>
+            </div>
+          </div>
+
+          <!-- React Panel -->
+          <div class="devex__tab-content" id="panel-react" role="tabpanel" aria-labelledby="tab-react">
+            <div class="code-block">
+              <button class="copy-btn" aria-label="Copy code to clipboard" data-code="react">Copy</button>
+<pre><span class="syn-keyword">import</span> <span class="syn-punc">{</span> <span class="syn-hook">useInbox</span><span class="syn-punc">,</span> <span class="syn-hook">useMessage</span><span class="syn-punc">,</span> <span class="syn-hook">useSend</span> <span class="syn-punc">}</span> <span class="syn-keyword">from</span> <span class="syn-string">"@anthropic/inbox/react"</span><span class="syn-punc">;</span>
+
+<span class="syn-keyword">function</span> <span class="syn-type">AgentInbox</span><span class="syn-punc">()</span> <span class="syn-punc">{</span>
+  <span class="syn-keyword">const</span> <span class="syn-punc">{</span> <span class="syn-prop">items</span><span class="syn-punc">,</span> <span class="syn-prop">isLoading</span> <span class="syn-punc">}</span> <span class="syn-punc">=</span> <span class="syn-hook">useInbox</span><span class="syn-punc">({</span>
+    <span class="syn-prop">state</span><span class="syn-punc">:</span> <span class="syn-string">"unread"</span><span class="syn-punc">,</span>
+    <span class="syn-prop">pollInterval</span><span class="syn-punc">:</span> <span class="syn-prop">5000</span><span class="syn-punc">,</span>
+  <span class="syn-punc">});</span>
+
+  <span class="syn-keyword">if</span> <span class="syn-punc">(</span><span class="syn-prop">isLoading</span><span class="syn-punc">)</span> <span class="syn-keyword">return</span> <span class="syn-tag">&lt;InboxSkeleton /&gt;</span><span class="syn-punc">;</span>
+
+  <span class="syn-keyword">return</span> <span class="syn-punc">(</span>
+    <span class="syn-tag">&lt;div</span> <span class="syn-attr">className</span><span class="syn-punc">=</span><span class="syn-string">"inbox"</span><span class="syn-tag">&gt;</span>
+      <span class="syn-punc">{</span><span class="syn-prop">items</span><span class="syn-punc">.</span><span class="syn-prop">map</span><span class="syn-punc">((</span><span class="syn-prop">item</span><span class="syn-punc">)</span> <span class="syn-keyword">=&gt;</span> <span class="syn-punc">(</span>
+        <span class="syn-tag">&lt;MessageRow</span>
+          <span class="syn-attr">key</span><span class="syn-punc">=</span><span class="syn-punc">{</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">message_id</span><span class="syn-punc">}</span>
+          <span class="syn-attr">sender</span><span class="syn-punc">=</span><span class="syn-punc">{</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">sender</span><span class="syn-punc">}</span>
+          <span class="syn-attr">subject</span><span class="syn-punc">=</span><span class="syn-punc">{</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">subject</span><span class="syn-punc">}</span>
+          <span class="syn-attr">state</span><span class="syn-punc">=</span><span class="syn-punc">{</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">engagement_state</span><span class="syn-punc">}</span>
+          <span class="syn-attr">onClick</span><span class="syn-punc">=</span><span class="syn-punc">{()</span> <span class="syn-keyword">=&gt;</span> <span class="syn-prop">openMessage</span><span class="syn-punc">(</span><span class="syn-prop">item</span><span class="syn-punc">.</span><span class="syn-prop">message_id</span><span class="syn-punc">)}</span>
+        <span class="syn-tag">/&gt;</span>
+      <span class="syn-punc">))}</span>
+    <span class="syn-tag">&lt;/div&gt;</span>
+  <span class="syn-punc">);</span>
+<span class="syn-punc">}</span>
+
+<span class="syn-keyword">function</span> <span class="syn-type">ComposePanel</span><span class="syn-punc">({</span> <span class="syn-prop">replyTo</span> <span class="syn-punc">}</span><span class="syn-punc">:</span> <span class="syn-punc">{</span> <span class="syn-prop">replyTo</span><span class="syn-punc">?:</span> <span class="syn-type">string</span> <span class="syn-punc">})</span> <span class="syn-punc">{</span>
+  <span class="syn-keyword">const</span> <span class="syn-punc">{</span> <span class="syn-prop">send</span><span class="syn-punc">,</span> <span class="syn-prop">isPending</span> <span class="syn-punc">}</span> <span class="syn-punc">=</span> <span class="syn-hook">useSend</span><span class="syn-punc">();</span>
+
+  <span class="syn-keyword">const</span> <span class="syn-prop">handleSend</span> <span class="syn-punc">=</span> <span class="syn-keyword">async</span> <span class="syn-punc">(</span><span class="syn-prop">draft</span><span class="syn-punc">:</span> <span class="syn-type">Draft</span><span class="syn-punc">)</span> <span class="syn-keyword">=&gt;</span> <span class="syn-punc">{</span>
+    <span class="syn-keyword">await</span> <span class="syn-prop">send</span><span class="syn-punc">({</span>
+      <span class="syn-prop">to</span><span class="syn-punc">:</span> <span class="syn-prop">draft</span><span class="syn-punc">.</span><span class="syn-prop">recipients</span><span class="syn-punc">,</span>
+      <span class="syn-prop">subject</span><span class="syn-punc">:</span> <span class="syn-prop">draft</span><span class="syn-punc">.</span><span class="syn-prop">subject</span><span class="syn-punc">,</span>
+      <span class="syn-prop">body</span><span class="syn-punc">:</span> <span class="syn-prop">draft</span><span class="syn-punc">.</span><span class="syn-prop">body</span><span class="syn-punc">,</span>
+    <span class="syn-punc">});</span>
+  <span class="syn-punc">};</span>
+
+  <span class="syn-keyword">return</span> <span class="syn-tag">&lt;ComposeForm</span> <span class="syn-attr">onSubmit</span><span class="syn-punc">=</span><span class="syn-punc">{</span><span class="syn-prop">handleSend</span><span class="syn-punc">}</span> <span class="syn-attr">disabled</span><span class="syn-punc">=</span><span class="syn-punc">{</span><span class="syn-prop">isPending</span><span class="syn-punc">}</span> <span class="syn-tag">/&gt;</span><span class="syn-punc">;</span>
+<span class="syn-punc">}</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ DISCOVERY MODE ═══ -->
+    <section class="discovery">
+      <div class="container">
+        <div class="discovery__header">
+          <span class="pill pill--exp">Experimental</span>
+          <h2>What Comes Next Is Up to You</h2>
+          <p>Discovery Mode exposes the frontier. Try a command that does not exist yet. We will ask you what it should do.</p>
+        </div>
+
+        <div class="discovery__terminal will-animate" aria-label="Terminal demo showing experimental Inbox commands and their feedback responses">
+          <div class="discovery__terminal-bar" aria-hidden="true">
+            <span class="terminal-dot terminal-dot--red"></span>
+            <span class="terminal-dot terminal-dot--yellow"></span>
+            <span class="terminal-dot terminal-dot--green"></span>
+            <span class="terminal-title">inbox &mdash; experimental mode</span>
+          </div>
+          <div class="discovery__terminal-body" id="terminalBody">
+            <div class="sr-only">Terminal transcript: export INBOX_EXPERIMENTAL_MODE=1, then inbox forward command shows feature coming soon with feedback prompt, then inbox give-feedback submits feedback successfully.</div>
+            <!-- Terminal content injected by JS -->
+          </div>
+        </div>
+
+        <div class="discovery__profiles">
+          <div class="profile-card will-animate" style="transition-delay: 0s">
+            <div class="profile-card__header">
+              <span class="profile-card__tier" style="color: var(--amber-500)">Core</span>
+            </div>
+            <p class="profile-card__sub">The essentials you will ask for first</p>
+            <div class="profile-card__tags">
+              <span class="profile-card__tag">forward</span>
+              <span class="profile-card__tag">fork</span>
+              <span class="profile-card__tag">search</span>
+              <span class="profile-card__tag">snooze</span>
+              <span class="profile-card__tag">archive</span>
+              <span class="profile-card__tag">mark-unread</span>
+              <span class="profile-card__tag">--bcc</span>
+              <span class="profile-card__tag">--send-at</span>
+              <span class="profile-card__tag">--receipt</span>
+              <span class="profile-card__tag">--tag</span>
+              <span class="profile-card__tag">--sort</span>
+            </div>
+          </div>
+
+          <div class="profile-card will-animate" style="transition-delay: 0.15s">
+            <div class="profile-card__header">
+              <span class="profile-card__tier" style="color: var(--amber-400)">Broad</span>
+              <span class="profile-card__includes">includes Core</span>
+            </div>
+            <p class="profile-card__sub">Power-user features on the horizon</p>
+            <div class="profile-card__tags">
+              <span class="profile-card__tag">watch</span>
+              <span class="profile-card__tag">unwatch</span>
+              <span class="profile-card__tag">export</span>
+              <span class="profile-card__tag">mute</span>
+              <span class="profile-card__tag">unmute</span>
+              <span class="profile-card__tag">--follow-up</span>
+              <span class="profile-card__tag">--quote</span>
+              <span class="profile-card__tag">--template</span>
+            </div>
+          </div>
+
+          <div class="profile-card profile-card--frontier will-animate" style="transition-delay: 0.3s">
+            <div class="profile-card__header">
+              <span class="profile-card__tier" style="color: var(--amber-300)">Frontier</span>
+              <span class="profile-card__includes">includes Core + Broad</span>
+            </div>
+            <p class="profile-card__sub">The wild ideas we are not sure about yet</p>
+            <div class="profile-card__tags">
+              <span class="profile-card__tag">filter</span>
+              <span class="profile-card__tag">escalate</span>
+              <span class="profile-card__tag">alert</span>
+              <span class="profile-card__tag">report</span>
+              <span class="profile-card__tag">scan</span>
+              <span class="profile-card__tag">move</span>
+              <span class="profile-card__tag">create-folder</span>
+              <span class="profile-card__tag">create-tag</span>
+              <span class="profile-card__tag">--signature</span>
+              <span class="profile-card__tag">--cid</span>
+              <span class="profile-card__tag">--public</span>
+              <span class="profile-card__tag">--self-destruct</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ FINAL CTA ═══ -->
+    <section class="final-cta">
+      <div class="container">
+        <h2>Your Agents Deserve an Inbox</h2>
+        <p>Set up in under five minutes. No infrastructure required.</p>
+        <div class="final-cta__buttons">
+          <a class="btn btn--primary btn--large" href="/app/">Start Building</a>
+          <a class="btn btn--ghost" href="/app/">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__watermark" aria-hidden="true" role="presentation">INBOX</div>
+
+      <div class="footer__top">
+        <div class="footer__brand">
+          <div class="footer__logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M3 8l9 6 9-6"/>
+              <rect x="3" y="8" width="18" height="12" rx="1.5"/>
+              <path d="M3 8l9-4 9 4"/>
+            </svg>
+            <span>Inbox</span>
+          </div>
+          <p class="footer__tagline">Mail for machines. Built by Anthropic.</p>
+        </div>
+
+        <nav class="footer__links" aria-label="Footer navigation">
+          <div class="footer__link-group">
+            <h4>Product</h4>
+            <a href="/app/">Documentation</a>
+            <a href="/app/">API Reference</a>
+            <a href="/app/">Changelog</a>
+            <a href="/app/">Status</a>
+          </div>
+          <div class="footer__link-group">
+            <h4>Developers</h4>
+            <a href="/app/">Quick Start</a>
+            <a href="/app/">CLI Reference</a>
+            <a href="/app/">TypeScript SDK</a>
+            <a href="/app/">React Hooks</a>
+          </div>
+          <div class="footer__link-group">
+            <h4>Community</h4>
+            <a href="/app/">GitHub</a>
+            <a href="/app/">Discord</a>
+            <a href="/app/">Blog</a>
+            <a href="/app/">Give Feedback</a>
+          </div>
+        </nav>
+      </div>
+
+      <hr class="footer__divider" />
+
+      <div class="footer__bottom">
+        <p class="footer__copyright">&copy; 2026 Anthropic. All rights reserved.</p>
+        <div class="footer__bottom-links">
+          <a href="/app/">Privacy</a>
+          <a href="/app/">Terms</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* ── Scroll Animations via IntersectionObserver ── */
+    (function() {
+      if (typeof IntersectionObserver === 'undefined') {
+        document.querySelectorAll('.will-animate, .will-animate-left, .will-animate-right').forEach(function(el) {
+          el.classList.add('in-view');
+        });
+        return;
+      }
+
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in-view');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      document.querySelectorAll('.will-animate, .will-animate-left, .will-animate-right').forEach(function(el) {
+        observer.observe(el);
+      });
+    })();
+
+    /* ── Hero Envelope Animation ── */
+    (function() {
+      var envelope = document.getElementById('heroEnvelope');
+      if (!envelope) return;
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (prefersReduced) {
+        envelope.classList.add('envelope--open', 'envelope--risen', 'envelope--json');
+        return;
+      }
+
+      setTimeout(function() { envelope.classList.add('envelope--open'); }, 1500);
+      setTimeout(function() { envelope.classList.add('envelope--risen'); }, 2500);
+      setTimeout(function() { envelope.classList.add('envelope--json'); }, 4000);
+    })();
+
+    /* ── Tab Switching ── */
+    (function() {
+      var tabs = document.querySelectorAll('.devex__tab');
+      var panels = document.querySelectorAll('.devex__tab-content');
+
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          tabs.forEach(function(t) {
+            t.classList.remove('devex__tab--active');
+            t.setAttribute('aria-selected', 'false');
+          });
+          panels.forEach(function(p) {
+            p.classList.remove('devex__tab-content--active');
+          });
+
+          tab.classList.add('devex__tab--active');
+          tab.setAttribute('aria-selected', 'true');
+          var panel = document.getElementById(tab.getAttribute('aria-controls'));
+          if (panel) panel.classList.add('devex__tab-content--active');
+        });
+
+        tab.addEventListener('keydown', function(e) {
+          var tabList = Array.from(tabs);
+          var idx = tabList.indexOf(tab);
+          var next = -1;
+          if (e.key === 'ArrowRight') next = (idx + 1) % tabList.length;
+          else if (e.key === 'ArrowLeft') next = (idx - 1 + tabList.length) % tabList.length;
+          if (next >= 0) {
+            e.preventDefault();
+            tabList[next].focus();
+            tabList[next].click();
+          }
+        });
+      });
+    })();
+
+    /* ── Copy Button ── */
+    (function() {
+      document.querySelectorAll('.copy-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var pre = btn.closest('.code-block').querySelector('pre');
+          if (!pre) return;
+          var text = pre.textContent || pre.innerText;
+          navigator.clipboard.writeText(text).then(function() {
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+          }).catch(function() {
+            btn.textContent = 'Failed';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+          });
+        });
+      });
+    })();
+
+    /* ── Terminal Typing Animation ── */
+    (function() {
+      var body = document.getElementById('terminalBody');
+      if (!body) return;
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var lines = [
+        { type: 'cmd', text: '$ export INBOX_EXPERIMENTAL_MODE=1' },
+        { type: 'cmd', text: '$ export INBOX_EXPERIMENTAL_PROFILE=core' },
+        { type: 'blank' },
+        { type: 'cmd', text: '$ inbox forward msg_019d6f100001 --to eng-2@vps-1' },
+        { type: 'blank' },
+        { type: 'output', text: '  feature coming soon: forward' },
+        { type: 'blank' },
+        { type: 'highlight', text: '  please describe how you would like to use' },
+        { type: 'highlight', text: '  this \'forward\' feature in your workflow:' },
+        { type: 'output', text: '    inbox give-feedback --feature forward \\' },
+        { type: 'output', text: '      --wanted "<what you wanted to do>"' },
+        { type: 'blank' },
+        { type: 'cmd', text: '$ inbox give-feedback --feature forward --kind verb \\' },
+        { type: 'cmd', text: '    --wanted "Forward status reports to my manager weekly"' },
+        { type: 'blank' },
+        { type: 'highlight', text: '  ok: true' },
+        { type: 'output', text: '  feedback_id: fbk_019d6f500001_f8a2c1d3' },
+        { type: 'highlight', text: '  message: "Thank you. Your feedback shapes what we build next."' },
+      ];
+
+      if (prefersReduced) {
+        var html = '';
+        lines.forEach(function(line) {
+          if (line.type === 'blank') { html += '<div class="term-line"></div>'; return; }
+          var cls = line.type === 'cmd' ? 'term-cmd' : line.type === 'highlight' ? 'term-highlight' : 'term-output';
+          html += '<div class="term-line"><span class="' + cls + '">' + escapeHtml(line.text) + '</span></div>';
+        });
+        body.innerHTML = html;
+        return;
+      }
+
+      var started = false;
+      var termObserver = new IntersectionObserver(function(entries) {
+        if (entries[0].isIntersecting && !started) {
+          started = true;
+          termObserver.disconnect();
+          setTimeout(function() { typeLines(0); }, 500);
+        }
+      }, { threshold: 0.3 });
+      termObserver.observe(body);
+
+      function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      function typeLines(idx) {
+        if (idx >= lines.length) {
+          var cursor = document.createElement('span');
+          cursor.className = 'term-cursor';
+          cursor.textContent = '\u2588';
+          body.lastElementChild.appendChild(cursor);
+          return;
+        }
+        var line = lines[idx];
+        var div = document.createElement('div');
+        div.className = 'term-line';
+        body.appendChild(div);
+
+        if (line.type === 'blank') {
+          setTimeout(function() { typeLines(idx + 1); }, 100);
+          return;
+        }
+
+        var span = document.createElement('span');
+        var cls = line.type === 'cmd' ? 'term-cmd' : line.type === 'highlight' ? 'term-highlight' : 'term-output';
+        span.className = cls;
+        div.appendChild(span);
+
+        var charRate = line.type === 'cmd' ? 30 : 8;
+        var text = line.text;
+        var ci = 0;
+        var interval = setInterval(function() {
+          if (ci < text.length) {
+            span.textContent += text[ci];
+            ci++;
+          } else {
+            clearInterval(interval);
+            var delay = line.type === 'cmd' ? 400 : 80;
+            setTimeout(function() { typeLines(idx + 1); }, delay);
+          }
+        }, charRate);
+      }
+    })();
+  </script>
 </body>
 </html>
