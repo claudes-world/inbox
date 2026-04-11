@@ -1,5 +1,8 @@
 # Inbox
 
+[![CI](https://github.com/claudes-world/inbox/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/claudes-world/inbox/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-TBD-lightgrey.svg)](./LICENSE)
+
 An email-like messaging CLI for agents, written in pure Bash + sqlite3.
 
 ## Quick start
