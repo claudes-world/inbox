@@ -34,5 +34,8 @@
     "dist",
     "src"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "7.3.0"
+  }
 }

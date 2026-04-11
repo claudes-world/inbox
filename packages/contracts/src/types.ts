@@ -14,9 +14,12 @@ import type {
   deliveryStateSchema,
   directoryListResponseSchema,
   directoryMembersResponseSchema,
+  directoryQuerySchema,
   directoryShowResponseSchema,
   errorDetailSchema,
   errorEnvelopeSchema,
+  errorResponseSchema,
+  eventsQuerySchema,
   experimentListResponseSchema,
   experimentSchema,
   experimentStatusSchema,
@@ -25,22 +28,28 @@ import type {
   feedbackEntrySchema,
   feedbackSentimentSchema,
   giveFeedbackResponseSchema,
+  inboxQuerySchema,
+  inboxReadQuerySchema,
   listItemSchema,
   listResponseSchema,
   messageContentSchema,
   mutationResponseSchema,
   readResponseSchema,
   referenceSchema,
+  replyRequestSchema,
   replyResponseSchema,
   threadReferenceSchema,
   resolutionSummarySchema,
+  sendRequestSchema,
   sendResponseSchema,
   sentListItemSchema,
   sentListResponseSchema,
   sentMutationResponseSchema,
+  sentQuerySchema,
   sentReadResponseSchema,
   sentStateSchema,
   threadItemSchema,
+  threadQuerySchema,
   threadResponseSchema,
   whoamiResponseSchema,
 } from "./schemas.js";
@@ -145,3 +154,17 @@ export type SuccessResponse =
   | GiveFeedbackResponse;
 
 export type CliResponse = SuccessResponse | ErrorEnvelope | ComingSoonError;
+
+// ---------------------------------------------------------------------------
+// BFF request / query types (OpenAPI track)
+// ---------------------------------------------------------------------------
+
+export type SendRequest = z.infer<typeof sendRequestSchema>;
+export type ReplyRequest = z.infer<typeof replyRequestSchema>;
+export type InboxListQuery = z.infer<typeof inboxQuerySchema>;
+export type InboxReadQuery = z.infer<typeof inboxReadQuerySchema>;
+export type SentListQuery = z.infer<typeof sentQuerySchema>;
+export type ThreadQuery = z.infer<typeof threadQuerySchema>;
+export type DirectoryListQuery = z.infer<typeof directoryQuerySchema>;
+export type EventsQuery = z.infer<typeof eventsQuerySchema>;
+export type ErrorResponse = z.infer<typeof errorResponseSchema>;
