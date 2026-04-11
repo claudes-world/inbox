@@ -19,7 +19,17 @@ import type {
   DirectoryMembersResponse,
   DeliveryEventListResponse,
 } from "@inbox/contracts";
-import { deliveryEventListResponseSchema } from "@inbox/contracts";
+import {
+  deliveryEventListResponseSchema,
+  directoryListResponseSchema,
+  directoryShowResponseSchema,
+  listResponseSchema,
+  readResponseSchema,
+  sentListResponseSchema,
+  sentReadResponseSchema,
+  threadResponseSchema,
+} from "@inbox/contracts";
+import { parsedGet } from "./lib/contract-fetch.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,14 +91,18 @@ export function fetchInbox(
   if (filters?.visibility && filters.visibility !== "any")
     params.set("visibility", filters.visibility);
   const qs = params.toString();
-  return get(`/api/inbox${qs ? `?${qs}` : ""}`, address);
+  return parsedGet(
+    `/api/inbox${qs ? `?${qs}` : ""}`,
+    address,
+    listResponseSchema,
+  );
 }
 
 export function fetchMessage(
   address: string,
   messageId: string,
 ): Promise<ReadResponse> {
-  return get(`/api/inbox/${messageId}`, address);
+  return parsedGet(`/api/inbox/${messageId}`, address, readResponseSchema);
 }
 
 export function postAck(
@@ -120,7 +134,11 @@ export function fetchThread(
   address: string,
   conversationId: string,
 ): Promise<ThreadResponse> {
-  return get(`/api/thread/${conversationId}?full=1`, address);
+  return parsedGet(
+    `/api/thread/${conversationId}?full=1`,
+    address,
+    threadResponseSchema,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -173,14 +191,22 @@ export function fetchSent(
   if (filters?.visibility && filters.visibility !== "any")
     params.set("visibility", filters.visibility);
   const qs = params.toString();
-  return get(`/api/sent${qs ? `?${qs}` : ""}`, address);
+  return parsedGet(
+    `/api/sent${qs ? `?${qs}` : ""}`,
+    address,
+    sentListResponseSchema,
+  );
 }
 
 export function fetchSentMessage(
   address: string,
   messageId: string,
 ): Promise<SentReadResponse> {
-  return get(`/api/sent/${messageId}`, address);
+  return parsedGet(
+    `/api/sent/${messageId}`,
+    address,
+    sentReadResponseSchema,
+  );
 }
 
 export function postSentHide(
@@ -207,7 +233,7 @@ export interface EventFilters {
   limit?: number;
 }
 
-export async function fetchEvents(
+export function fetchEvents(
   address: string,
   filters?: EventFilters,
 ): Promise<DeliveryEventListResponse> {
@@ -216,11 +242,11 @@ export async function fetchEvents(
   if (filters?.event_type) params.set("event_type", filters.event_type);
   if (filters?.limit) params.set("limit", String(filters.limit));
   const qs = params.toString();
-  const raw = await get<unknown>(
+  return parsedGet(
     `/api/events${qs ? `?${qs}` : ""}`,
     address,
+    deliveryEventListResponseSchema,
   );
-  return deliveryEventListResponseSchema.parse(raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -229,13 +255,21 @@ export async function fetchEvents(
 
 export function fetchDirectory(): Promise<DirectoryListResponse> {
   // Directory doesn't require actor address
-  return get("/api/directory?listed=0", "system@local");
+  return parsedGet(
+    "/api/directory?listed=0",
+    "system@local",
+    directoryListResponseSchema,
+  );
 }
 
 export function fetchDirectoryShow(
   address: string,
 ): Promise<DirectoryShowResponse> {
-  return get(`/api/directory/${address}`, "system@local");
+  return parsedGet(
+    `/api/directory/${address}`,
+    "system@local",
+    directoryShowResponseSchema,
+  );
 }
 
 export function fetchDirectoryMembers(

@@ -3,8 +3,27 @@
  *
  * Uses page.route() to intercept fetch requests in-browser.
  * Response payloads come from @inbox/contracts fixtures.
+ *
+ * Mocks self-validate at module import time — see `validateFixtures()`
+ * at the bottom of this file. If a mock body drifts from the contract
+ * (e.g. because @inbox/contracts adds a required field), Playwright
+ * setup blows up with a clear stack trace before the UI code runs, so
+ * a bad mock can't silently masquerade as a UI bug.
  */
 import type { Page, Route } from "@playwright/test";
+import type { z } from "zod";
+import {
+  listResponseSchema,
+  readResponseSchema,
+  sentListResponseSchema,
+  sentReadResponseSchema,
+  threadResponseSchema,
+  sendResponseSchema,
+  replyResponseSchema,
+  mutationResponseSchema,
+  sentMutationResponseSchema,
+  directoryListResponseSchema,
+} from "@inbox/contracts";
 
 // ---------------------------------------------------------------------------
 // Fixture data (mirroring @inbox/contracts/fixtures)
@@ -221,6 +240,39 @@ export const sendResponse = {
   sent_item_created: true,
 };
 
+export const inboxMutationResponse = {
+  ok: true,
+  message_id: "msg_read_001",
+  changed: true,
+  view_kind: "received",
+  engagement_state: "acknowledged",
+  visibility_state: "active",
+};
+
+export const sentMutationResponseBody = {
+  ok: true,
+  message_id: "msg_sentread_001",
+  changed: true,
+  view_kind: "sent",
+  visibility_state: "hidden",
+};
+
+export const replyResponseBody = {
+  ok: true,
+  message_id: "msg_reply_001",
+  conversation_id: "cnv_001",
+  parent_message_id: "msg_read_001",
+  sender: "pm-alpha@vps-1",
+  resolved_recipient_count: 2,
+  resolution_summary: {
+    logical_recipient_count: 2,
+    resolved_recipient_count: 2,
+    skipped_inactive_member_count: 0,
+    deduped_recipient_count: 0,
+  },
+  sent_item_created: true,
+};
+
 // ---------------------------------------------------------------------------
 // Route setup
 // ---------------------------------------------------------------------------
@@ -255,14 +307,7 @@ export async function mockApi(page: Page) {
       return json(route, messageReadResponse);
     }
     // POST mutations (ack, hide, unhide)
-    return json(route, {
-      ok: true,
-      message_id: "msg_read_001",
-      changed: true,
-      view_kind: "received",
-      engagement_state: "acknowledged",
-      visibility_state: "active",
-    });
+    return json(route, inboxMutationResponse);
   });
 
   // Inbox list (matches /api/inbox and /api/inbox?visibility=active etc.)
@@ -278,13 +323,7 @@ export async function mockApi(page: Page) {
     if (route.request().method() === "GET") {
       return json(route, sentReadResponse);
     }
-    return json(route, {
-      ok: true,
-      message_id: "msg_sentread_001",
-      changed: true,
-      view_kind: "sent",
-      visibility_state: "hidden",
-    });
+    return json(route, sentMutationResponseBody);
   });
 
   // Sent list
@@ -306,21 +345,53 @@ export async function mockApi(page: Page) {
   );
 
   // Reply
-  await page.route(/\/api\/reply\//, (route) =>
-    json(route, {
-      ok: true,
-      message_id: "msg_reply_001",
-      conversation_id: "cnv_001",
-      parent_message_id: "msg_read_001",
-      sender: "pm-alpha@vps-1",
-      resolved_recipient_count: 2,
-      resolution_summary: {
-        logical_recipient_count: 2,
-        resolved_recipient_count: 2,
-        skipped_inactive_member_count: 0,
-        deduped_recipient_count: 0,
-      },
-      sent_item_created: true,
-    }),
-  );
+  await page.route(/\/api\/reply\//, (route) => json(route, replyResponseBody));
 }
+
+// ---------------------------------------------------------------------------
+// Self-validation
+//
+// Every fixture is run through its contract schema at module import time.
+// If any mock drifts, this throws BEFORE any Playwright page is created,
+// so the failure is a clean setup error with a Zod trace rather than a
+// mysterious render failure inside the app.
+// ---------------------------------------------------------------------------
+
+function validateFixture<T>(
+  schema: z.ZodType<T>,
+  fixture: unknown,
+  name: string,
+): void {
+  const result = schema.safeParse(fixture);
+  if (!result.success) {
+    throw new Error(
+      `E2E mock fixture "${name}" failed contract validation — ` +
+        `${result.error.issues.length} issue(s): ` +
+        JSON.stringify(result.error.issues, null, 2),
+    );
+  }
+}
+
+function validateFixtures(): void {
+  validateFixture(directoryListResponseSchema, directoryResponse, "directoryResponse");
+  validateFixture(listResponseSchema, inboxResponse, "inboxResponse");
+  validateFixture(listResponseSchema, emptyInboxResponse, "emptyInboxResponse");
+  validateFixture(readResponseSchema, messageReadResponse, "messageReadResponse");
+  validateFixture(sentListResponseSchema, sentListResponse, "sentListResponse");
+  validateFixture(sentReadResponseSchema, sentReadResponse, "sentReadResponse");
+  validateFixture(threadResponseSchema, threadResponse, "threadResponse");
+  validateFixture(sendResponseSchema, sendResponse, "sendResponse");
+  validateFixture(
+    mutationResponseSchema,
+    inboxMutationResponse,
+    "inboxMutationResponse",
+  );
+  validateFixture(
+    sentMutationResponseSchema,
+    sentMutationResponseBody,
+    "sentMutationResponseBody",
+  );
+  validateFixture(replyResponseSchema, replyResponseBody, "replyResponseBody");
+}
+
+validateFixtures();

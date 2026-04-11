@@ -15,6 +15,6 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("App", () => {
   it("renders the header", () => {
     renderWithProviders(<App />);
-    expect(screen.getByText(/Operator's Console/)).toBeDefined();
+    expect(screen.getByRole("heading", { name: /Inbox/ })).toBeDefined();
   });
 });
