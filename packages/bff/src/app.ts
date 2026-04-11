@@ -7,6 +7,7 @@ import { sentRoutes } from "./routes/sent.js";
 import { threadRoutes } from "./routes/thread.js";
 import { directoryRoutes } from "./routes/directory.js";
 import { eventsRoutes } from "./routes/events.js";
+import { openApiRoutes } from "./routes/openapi.js";
 
 export const app = new Hono();
 
@@ -21,3 +22,4 @@ app.route("/api/sent", sentRoutes);
 app.route("/api/thread", threadRoutes);
 app.route("/api/directory", directoryRoutes);
 app.route("/api/events", eventsRoutes);
+app.route("/api/openapi.json", openApiRoutes);

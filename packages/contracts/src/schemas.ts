@@ -4,7 +4,13 @@
  * These schemas encode the frozen response shapes from json-contracts.md
  * and the field names from Contract G (integration-seams.md).
  */
+import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
+
+// Register Zod's .openapi() extension. Must happen before any .openapi(...)
+// call below. Idempotent: calling extendZodWithOpenApi more than once is a
+// no-op if the prototype is already extended.
+extendZodWithOpenApi(z);
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -72,15 +78,19 @@ export const errorCodeSchema = z.enum([
 // ---------------------------------------------------------------------------
 
 /** Address summary — directory/whoami shape */
-export const addressSummarySchema = z.object({
-  address: addressStr,
-  kind: addressKindSchema,
-  display_name: z.string().nullable(),
-  description: z.string().nullable(),
-  is_active: z.boolean(),
-  is_listed: z.boolean(),
-  classification: z.string().nullable(),
-});
+export const addressSummarySchema = z
+  .object({
+    address: addressStr,
+    kind: addressKindSchema,
+    display_name: z.string().nullable(),
+    description: z.string().nullable(),
+    is_active: z.boolean(),
+    is_listed: z.boolean(),
+    classification: z.string().nullable(),
+  })
+  .openapi("AddressSummary", {
+    description: "A summary of an address (agent, human, service, or list)",
+  });
 
 /** Delivery-local state fragment */
 export const deliveryStateSchema = z.object({
@@ -130,10 +140,14 @@ export const errorDetailSchema = z.object({
   details: z.unknown().nullable().default(null),
 });
 
-export const errorEnvelopeSchema = z.object({
-  ok: z.literal(false),
-  error: errorDetailSchema,
-});
+export const errorEnvelopeSchema = z
+  .object({
+    ok: z.literal(false),
+    error: errorDetailSchema,
+  })
+  .openapi("ErrorEnvelope", {
+    description: "Standard error envelope returned by every non-2xx response",
+  });
 
 /** Experimental coming-soon error variant */
 export const comingSoonErrorSchema = z.object({
@@ -167,17 +181,21 @@ export const whoamiResponseSchema = z.object({
 });
 
 /** inbox send */
-export const sendResponseSchema = z.object({
-  ok: z.literal(true),
-  message_id: messageId,
-  conversation_id: conversationId,
-  sender: addressStr,
-  public_to: z.array(addressStr),
-  public_cc: z.array(addressStr),
-  resolved_recipient_count: z.number().int().positive(),
-  resolution_summary: resolutionSummarySchema,
-  sent_item_created: z.boolean(),
-});
+export const sendResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    message_id: messageId,
+    conversation_id: conversationId,
+    sender: addressStr,
+    public_to: z.array(addressStr),
+    public_cc: z.array(addressStr),
+    resolved_recipient_count: z.number().int().positive(),
+    resolution_summary: resolutionSummarySchema,
+    sent_item_created: z.boolean(),
+  })
+  .openapi("SendResponse", {
+    description: "Result of POST /api/send",
+  });
 
 /** inbox list — single item */
 export const listItemSchema = z.object({
@@ -195,12 +213,16 @@ export const listItemSchema = z.object({
 });
 
 /** inbox list */
-export const listResponseSchema = z.object({
-  ok: z.literal(true),
-  items: z.array(listItemSchema),
-  limit: z.number().int().positive(),
-  returned_count: z.number().int().nonnegative(),
-});
+export const listResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    items: z.array(listItemSchema),
+    limit: z.number().int().positive(),
+    returned_count: z.number().int().nonnegative(),
+  })
+  .openapi("ListResponse", {
+    description: "Result of GET /api/inbox — received message summaries",
+  });
 
 /** Message content fragment (shared by read, sent read) */
 export const messageContentSchema = z.object({
@@ -216,36 +238,48 @@ export const messageContentSchema = z.object({
 });
 
 /** inbox read */
-export const readResponseSchema = z.object({
-  ok: z.literal(true),
-  message: messageContentSchema,
-  state: deliveryStateSchema.extend({
-    delivery_id: deliveryId,
-  }),
-  history: z.array(z.unknown()),
-});
+export const readResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    message: messageContentSchema,
+    state: deliveryStateSchema.extend({
+      delivery_id: deliveryId,
+    }),
+    history: z.array(z.unknown()),
+  })
+  .openapi("ReadResponse", {
+    description: "Result of GET /api/inbox/{messageId} — full message + state + history",
+  });
 
 /** inbox reply */
-export const replyResponseSchema = z.object({
-  ok: z.literal(true),
-  message_id: messageId,
-  conversation_id: conversationId,
-  parent_message_id: messageId,
-  sender: addressStr,
-  resolved_recipient_count: z.number().int().positive(),
-  resolution_summary: resolutionSummarySchema,
-  sent_item_created: z.boolean(),
-});
+export const replyResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    message_id: messageId,
+    conversation_id: conversationId,
+    parent_message_id: messageId,
+    sender: addressStr,
+    resolved_recipient_count: z.number().int().positive(),
+    resolution_summary: resolutionSummarySchema,
+    sent_item_created: z.boolean(),
+  })
+  .openapi("ReplyResponse", {
+    description: "Result of POST /api/reply/{messageId}",
+  });
 
 /** inbox ack / hide / unhide — mutation result */
-export const mutationResponseSchema = z.object({
-  ok: z.literal(true),
-  message_id: messageId,
-  changed: z.boolean(),
-  view_kind: viewKindSchema,
-  engagement_state: engagementStateSchema.optional(),
-  visibility_state: visibilityStateSchema,
-});
+export const mutationResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    message_id: messageId,
+    changed: z.boolean(),
+    view_kind: viewKindSchema,
+    engagement_state: engagementStateSchema.optional(),
+    visibility_state: visibilityStateSchema,
+  })
+  .openapi("MutationResponse", {
+    description: "Result of inbox ack/hide/unhide mutations",
+  });
 
 /** inbox sent list — single item */
 export const sentListItemSchema = z.object({
@@ -258,28 +292,40 @@ export const sentListItemSchema = z.object({
 });
 
 /** inbox sent list */
-export const sentListResponseSchema = z.object({
-  ok: z.literal(true),
-  items: z.array(sentListItemSchema),
-  limit: z.number().int().positive(),
-  returned_count: z.number().int().nonnegative(),
-});
+export const sentListResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    items: z.array(sentListItemSchema),
+    limit: z.number().int().positive(),
+    returned_count: z.number().int().nonnegative(),
+  })
+  .openapi("SentListResponse", {
+    description: "Result of GET /api/sent — sent message summaries",
+  });
 
 /** inbox sent read */
-export const sentReadResponseSchema = z.object({
-  ok: z.literal(true),
-  message: messageContentSchema,
-  state: sentStateSchema,
-});
+export const sentReadResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    message: messageContentSchema,
+    state: sentStateSchema,
+  })
+  .openapi("SentReadResponse", {
+    description: "Result of GET /api/sent/{messageId} — full sent message",
+  });
 
 /** inbox sent hide / unhide */
-export const sentMutationResponseSchema = z.object({
-  ok: z.literal(true),
-  message_id: messageId,
-  changed: z.boolean(),
-  view_kind: z.literal("sent"),
-  visibility_state: visibilityStateSchema,
-});
+export const sentMutationResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    message_id: messageId,
+    changed: z.boolean(),
+    view_kind: z.literal("sent"),
+    visibility_state: visibilityStateSchema,
+  })
+  .openapi("SentMutationResponse", {
+    description: "Result of sent hide/unhide mutations",
+  });
 
 /** inbox thread — single item */
 export const threadItemSchema = z.object({
@@ -298,35 +344,51 @@ export const threadItemSchema = z.object({
 });
 
 /** inbox thread */
-export const threadResponseSchema = z.object({
-  ok: z.literal(true),
-  conversation_id: conversationId,
-  items: z.array(threadItemSchema),
-  limit: z.number().int().positive(),
-  returned_count: z.number().int().nonnegative(),
-  truncated: z.boolean(),
-  total_visible_count: z.number().int().nonnegative(),
-});
+export const threadResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    conversation_id: conversationId,
+    items: z.array(threadItemSchema),
+    limit: z.number().int().positive(),
+    returned_count: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    total_visible_count: z.number().int().nonnegative(),
+  })
+  .openapi("ThreadResponse", {
+    description: "Result of GET /api/thread/{conversationId}",
+  });
 
 /** inbox directory list */
-export const directoryListResponseSchema = z.object({
-  ok: z.literal(true),
-  items: z.array(addressSummarySchema),
-  returned_count: z.number().int().nonnegative(),
-});
+export const directoryListResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    items: z.array(addressSummarySchema),
+    returned_count: z.number().int().nonnegative(),
+  })
+  .openapi("DirectoryListResponse", {
+    description: "Result of GET /api/directory",
+  });
 
 /** inbox directory show */
-export const directoryShowResponseSchema = z.object({
-  ok: z.literal(true),
-  address: addressSummarySchema,
-});
+export const directoryShowResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    address: addressSummarySchema,
+  })
+  .openapi("DirectoryShowResponse", {
+    description: "Result of GET /api/directory/{address}",
+  });
 
 /** inbox directory members */
-export const directoryMembersResponseSchema = z.object({
-  ok: z.literal(true),
-  group: addressStr,
-  members: z.array(addressStr),
-});
+export const directoryMembersResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    group: addressStr,
+    members: z.array(addressStr),
+  })
+  .openapi("DirectoryMembersResponse", {
+    description: "Result of GET /api/directory/{address}/members — list members of a group address",
+  });
 
 /** inbox give-feedback */
 export const giveFeedbackResponseSchema = z.object({
@@ -430,14 +492,155 @@ export const deliveryEventSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const deliveryEventListResponseSchema = z.object({
-  items: z.array(deliveryEventSchema),
-  returned_count: z.number().int().nonnegative(),
-  filters: z
-    .object({
-      message_id: z.string().nullable(),
-      event_type: deliveryEventTypeSchema.nullable(),
-      actor_address: z.string().nullable(),
-    })
-    .optional(),
-});
+export const deliveryEventListResponseSchema = z
+  .object({
+    items: z.array(deliveryEventSchema),
+    returned_count: z.number().int().nonnegative(),
+    filters: z
+      .object({
+        message_id: z.string().nullable(),
+        event_type: deliveryEventTypeSchema.nullable(),
+        actor_address: z.string().nullable(),
+      })
+      .optional(),
+  })
+  .openapi("DeliveryEventListResponse", {
+    description: "Result of GET /api/events — delivery event history",
+  });
+
+// ---------------------------------------------------------------------------
+// BFF request bodies and query schemas
+// ---------------------------------------------------------------------------
+//
+// These schemas describe the HTTP-layer inputs to the BFF. They were added in
+// the OpenAPI endpoint track so that the generated spec has a single source
+// of truth for request bodies and query parameters (DA amendments 1 and 2).
+//
+// The BFF handlers still accept slightly looser inputs in practice (e.g. a
+// missing `to` field on /api/send is rejected at runtime with a 400). The
+// schemas below describe the *documented* contract — what clients SHOULD
+// send — not every permissive edge case the handlers tolerate.
+
+/** Recipient list accepted by /api/send and /api/reply */
+export const recipientInputSchema = z.union([
+  z.string(),
+  z.array(z.string()),
+]);
+
+/** POST /api/send request body */
+export const sendRequestSchema = z
+  .object({
+    to: recipientInputSchema,
+    cc: recipientInputSchema.optional(),
+    subject: z.string().optional(),
+    body: z.string().optional(),
+    urgency: urgencySchema.optional(),
+    references: z.array(z.unknown()).optional(),
+  })
+  .openapi("SendRequest", {
+    description:
+      "Request body for POST /api/send. `to` and `cc` may be a single comma-separated string or an array of address strings.",
+  });
+
+/** POST /api/reply/{messageId} request body */
+export const replyRequestSchema = z
+  .object({
+    body: z.string().optional(),
+    subject: z.string().optional(),
+    urgency: urgencySchema.optional(),
+    to: recipientInputSchema.optional(),
+    cc: recipientInputSchema.optional(),
+    all: z.boolean().optional(),
+    references: z.array(z.unknown()).optional(),
+  })
+  .openapi("ReplyRequest", {
+    description:
+      "Request body for POST /api/reply/{messageId}. When `all` is true, original To/Cc recipients are included automatically.",
+  });
+
+/** Query params for GET /api/inbox */
+export const inboxQuerySchema = z
+  .object({
+    limit: z.string().optional(),
+    state: z.enum(["any", "unread", "read", "acknowledged"]).optional(),
+    visibility: z.enum(["any", "active", "hidden"]).optional(),
+    since_ms: z.string().optional(),
+    until_ms: z.string().optional(),
+  })
+  .openapi("InboxListQuery", {
+    description: "Query parameters for GET /api/inbox",
+  });
+
+/** Query params for GET /api/inbox/{messageId} */
+export const inboxReadQuerySchema = z
+  .object({
+    peek: z.enum(["0", "1", "true", "false"]).optional(),
+  })
+  .openapi("InboxReadQuery", {
+    description:
+      "Query parameters for GET /api/inbox/{messageId}. peek=1 avoids marking the message as read.",
+  });
+
+/** Query params for GET /api/sent */
+export const sentQuerySchema = z
+  .object({
+    limit: z.string().optional(),
+    visibility: z.enum(["any", "active", "hidden"]).optional(),
+    since_ms: z.string().optional(),
+    until_ms: z.string().optional(),
+  })
+  .openapi("SentListQuery", {
+    description: "Query parameters for GET /api/sent",
+  });
+
+/** Query params for GET /api/thread/{conversationId} */
+export const threadQuerySchema = z
+  .object({
+    limit: z.string().optional(),
+    full: z.enum(["0", "1", "true", "false"]).optional(),
+  })
+  .openapi("ThreadQuery", {
+    description:
+      "Query parameters for GET /api/thread/{conversationId}. full=1 returns the complete body and references per item.",
+  });
+
+/** Query params for GET /api/directory */
+export const directoryQuerySchema = z
+  .object({
+    kind: addressKindSchema.optional(),
+    listed: z.enum(["0", "1", "true", "false"]).optional(),
+  })
+  .openapi("DirectoryListQuery", {
+    description: "Query parameters for GET /api/directory",
+  });
+
+/** Query params for GET /api/events */
+export const eventsQuerySchema = z
+  .object({
+    message_id: z.string().optional(),
+    event_type: deliveryEventTypeSchema.optional(),
+    limit: z.string().optional(),
+  })
+  .openapi("EventsQuery", {
+    description: "Query parameters for GET /api/events",
+  });
+
+// ---------------------------------------------------------------------------
+// Shared HTTP error response schema (DA amendment 3)
+// ---------------------------------------------------------------------------
+//
+// Distinct from `errorEnvelopeSchema` (which is the CLI/BFF success=false
+// envelope with an `ok: false` discriminator). `errorResponseSchema` is the
+// flat HTTP-oriented error shape referenced by every OpenAPI operation's
+// 4xx/5xx responses. In practice the BFF returns the fuller envelope; this
+// schema advertises the minimum any client must handle.
+
+export const errorResponseSchema = z
+  .object({
+    error: z.string(),
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .openapi("ErrorResponse", {
+    description:
+      "Standard HTTP error response. The BFF currently returns the richer `ErrorEnvelope` shape, which is a superset; clients should handle both.",
+  });

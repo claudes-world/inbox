@@ -88,6 +88,17 @@ export {
   deliveryEventTypeSchema,
   deliveryEventSchema,
   deliveryEventListResponseSchema,
+  // BFF request / query schemas (OpenAPI track)
+  recipientInputSchema,
+  sendRequestSchema,
+  replyRequestSchema,
+  inboxQuerySchema,
+  inboxReadQuerySchema,
+  sentQuerySchema,
+  threadQuerySchema,
+  directoryQuerySchema,
+  eventsQuerySchema,
+  errorResponseSchema,
 } from "./schemas.js";
 
 // TypeScript types (zero-cost, type-only)
@@ -131,4 +142,14 @@ export type {
   ThreadItem,
   ThreadResponse,
   WhoamiResponse,
+  // BFF request / query types
+  SendRequest,
+  ReplyRequest,
+  InboxListQuery,
+  InboxReadQuery,
+  SentListQuery,
+  ThreadQuery,
+  DirectoryListQuery,
+  EventsQuery,
+  ErrorResponse,
 } from "./types.js";
