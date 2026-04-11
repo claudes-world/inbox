@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# inbox — CLI entrypoint for the Inbox messaging system
+# Usage: inbox <command> [options]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Source all lib modules in deterministic order
+for lib in "$SCRIPT_DIR"/lib/*.sh; do source "$lib"; done
+
+# Route to subcommand
+case "${1:-}" in
+  whoami|send|reply|list|read|ack|hide|unhide|sent|thread|directory|give-feedback|help|"")
+    # Will be wired in Phase 4
+    echo "inbox: command '${1:-help}' not yet implemented" >&2
+    exit 1
+    ;;
+  *)
+    echo "inbox: unknown command '$1'" >&2
+    exit 1
+    ;;
+esac
