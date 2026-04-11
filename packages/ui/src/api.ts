@@ -5,6 +5,8 @@
  * Returns typed responses from @inbox/contracts.
  */
 import type {
+  AnalyticsOverviewResponse,
+  AnalyticsTimeWindow,
   ListResponse,
   ReadResponse,
   ThreadResponse,
@@ -20,6 +22,7 @@ import type {
   DeliveryEventListResponse,
 } from "@inbox/contracts";
 import {
+  analyticsOverviewResponseSchema,
   deliveryEventListResponseSchema,
   directoryListResponseSchema,
   directoryMembersResponseSchema,
@@ -281,5 +284,30 @@ export function fetchDirectoryMembers(
     `/api/directory/${address}/members`,
     "system@local",
     directoryMembersResponseSchema,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Analytics
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/analytics/overview — message volume + engagement metrics for a
+ * time window (day / week / month / all).
+ *
+ * Server-side aggregation that replaces the prior client-side
+ * WorkflowDashboardScreen aggregation over /api/inbox + /api/sent. The
+ * response is validated against `analyticsOverviewResponseSchema` by
+ * `parsedGet`, so BFF drift surfaces as ContractDriftError at runtime
+ * instead of a silently broken render.
+ */
+export function fetchAnalyticsOverview(
+  address: string,
+  window: AnalyticsTimeWindow = "week",
+): Promise<AnalyticsOverviewResponse> {
+  return parsedGet(
+    `/api/analytics/overview?window=${window}`,
+    address,
+    analyticsOverviewResponseSchema,
   );
 }

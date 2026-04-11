@@ -34,6 +34,7 @@ import {
   reportContractDrift,
 } from "../lib/contract-fetch.js";
 import {
+  fetchAnalyticsOverview,
   fetchInbox,
   fetchMessage,
   fetchSent,
@@ -604,5 +605,81 @@ describe("client-side request validation", () => {
     // don't treat it as a BFF bug.
     expect(err.name).toBe("ZodError");
     expect(err.name).not.toBe("ContractDriftError");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchAnalyticsOverview — analytics endpoint (GET /api/analytics/overview)
+// ---------------------------------------------------------------------------
+//
+// Landed in BFF PR #127, wired into the UI in the WorkflowDashboardScreen
+// migration PR. These tests live alongside the other parsedGet fetchers
+// because they exercise the same validate-through-schema seam.
+//
+// The analytics response has no published fixture in @inbox/contracts
+// yet, so we define a minimal canonical body inline that satisfies
+// analyticsOverviewResponseSchema (window, timestamps, counts, rate in
+// [0,1], top lists with address + count entries).
+
+const analyticsOverviewFixture = {
+  window: "week" as const,
+  window_start_ts: 1_775_149_270_000,
+  window_end_ts: 1_775_754_070_000,
+  inbox_count: 12,
+  sent_count: 7,
+  response_rate: 0.5,
+  active_conversations: 4,
+  top_senders: [
+    { address: "pm-alpha@vps-1", count: 5 },
+    { address: "eng-manager@vps-1", count: 3 },
+  ],
+  top_recipients: [
+    { address: "eng-leads@lists", count: 4 },
+    { address: "ceo@org", count: 2 },
+  ],
+};
+
+describe("fetchAnalyticsOverview", () => {
+  it("happy path — valid analytics response parses cleanly", async () => {
+    mockFetchOnce(analyticsOverviewFixture);
+    const res = await fetchAnalyticsOverview("pm-alpha@vps-1", "week");
+    expect(res).toEqual(analyticsOverviewFixture);
+    expect(res.window).toBe("week");
+    expect(res.top_senders).toHaveLength(2);
+  });
+
+  it("defaults to the `week` window when called without a second arg", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => analyticsOverviewFixture,
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchAnalyticsOverview("pm-alpha@vps-1");
+    const call = fetchMock.mock.calls[0];
+    if (!call) throw new Error("expected fetch call");
+    expect(call[0]).toBe("/api/analytics/overview?window=week");
+  });
+
+  it("drift on response (response_rate > 1) → ContractDriftError", async () => {
+    const drifted = { ...analyticsOverviewFixture, response_rate: 1.5 };
+    mockFetchOnce(drifted);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      fetchAnalyticsOverview("pm-alpha@vps-1", "week"),
+    ).rejects.toMatchObject({ name: "ContractDriftError" });
+  });
+
+  it("drift on missing top_senders → ContractDriftError", async () => {
+    const drifted = { ...analyticsOverviewFixture } as Partial<
+      typeof analyticsOverviewFixture
+    >;
+    delete drifted.top_senders;
+    mockFetchOnce(drifted);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      fetchAnalyticsOverview("pm-alpha@vps-1", "week"),
+    ).rejects.toMatchObject({ name: "ContractDriftError" });
   });
 });
