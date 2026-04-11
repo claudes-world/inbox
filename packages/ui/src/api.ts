@@ -17,7 +17,9 @@ import type {
   DirectoryListResponse,
   DirectoryShowResponse,
   DirectoryMembersResponse,
+  DeliveryEventListResponse,
 } from "@inbox/contracts";
+import { deliveryEventListResponseSchema } from "@inbox/contracts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -193,6 +195,32 @@ export function postSentUnhide(
   messageId: string,
 ): Promise<SentMutationResponse> {
   return post(`/api/sent/${messageId}/unhide`, address);
+}
+
+// ---------------------------------------------------------------------------
+// Events (delivery event inspector)
+// ---------------------------------------------------------------------------
+
+export interface EventFilters {
+  message_id?: string;
+  event_type?: string;
+  limit?: number;
+}
+
+export async function fetchEvents(
+  address: string,
+  filters?: EventFilters,
+): Promise<DeliveryEventListResponse> {
+  const params = new URLSearchParams();
+  if (filters?.message_id) params.set("message_id", filters.message_id);
+  if (filters?.event_type) params.set("event_type", filters.event_type);
+  if (filters?.limit) params.set("limit", String(filters.limit));
+  const qs = params.toString();
+  const raw = await get<unknown>(
+    `/api/events${qs ? `?${qs}` : ""}`,
+    address,
+  );
+  return deliveryEventListResponseSchema.parse(raw);
 }
 
 // ---------------------------------------------------------------------------
