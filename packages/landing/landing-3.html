@@ -1,0 +1,2450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inbox — Messaging for Autonomous Agents</title>
+  <meta name="description" content="Durable, async messaging built for AI agents. Addresses, delivery tracking, threading, and distribution lists — all on SQLite.">
+  <meta property="og:title" content="Inbox — Messaging for Autonomous Agents">
+  <meta property="og:description" content="Durable, async messaging built for AI agents. Addresses, delivery tracking, threading, and distribution lists — all on SQLite.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Inbox — Messaging for Autonomous Agents">
+  <meta name="twitter:description" content="Durable, async messaging built for AI agents. No APIs to poll. No sessions to expire. Just addresses and mail.">
+  <meta name="theme-color" content="#09090b">
+  <meta name="color-scheme" content="dark">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Inbox",
+    "description": "An email-like messaging system for AI agents",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux",
+    "license": "https://opensource.org/licenses/MIT",
+    "offers": { "@type": "Offer", "price": "0" },
+    "author": { "@type": "Organization", "name": "Claude's World" }
+  }
+  </script>
+  <style>
+    /* ===== Design Tokens ===== */
+    :root {
+      /* Backgrounds */
+      --bg-primary:        #09090b;
+      --bg-secondary:      #18181b;
+      --bg-card:           #0f0f14;
+      --bg-card-hover:     #16161e;
+      --bg-surface:        #1a1a24;
+
+      /* Primary accents — purple/violet spectrum */
+      --accent-violet:     #8B5CF6;
+      --accent-violet-dim: #7C3AED;
+      --accent-violet-bright: #A78BFA;
+      --accent-violet-glow: rgba(139, 92, 246, 0.20);
+      --accent-violet-glow-strong: rgba(139, 92, 246, 0.40);
+
+      /* Secondary accents — indigo */
+      --accent-indigo:     #6366F1;
+      --accent-indigo-dim: #4F46E5;
+      --accent-indigo-glow: rgba(99, 102, 241, 0.18);
+
+      /* Semantic accents */
+      --accent-cyan:       #22d3ee;
+      --accent-cyan-glow:  rgba(34, 211, 238, 0.12);
+      --accent-green:      #4ade80;
+      --accent-green-glow: rgba(74, 222, 128, 0.10);
+      --accent-amber:      #fbbf24;
+      --accent-amber-glow: rgba(251, 191, 36, 0.12);
+      --accent-red:        #f87171;
+
+      /* Text */
+      --text-primary:      #fafafa;
+      --text-secondary:    #a1a1aa;
+      --text-tertiary:     #71717a;
+      --text-muted:        #52525b;
+      --text-accent:       #A78BFA;
+
+      /* Focus */
+      --focus-ring:        #A78BFA;
+      --focus-ring-offset: 2px;
+
+      /* Borders */
+      --border-default:    #27272a;
+      --border-subtle:     #1e1e24;
+      --border-glow:       rgba(139, 92, 246, 0.30);
+      --edge-default:      rgba(139, 92, 246, 0.15);
+      --edge-active:       rgba(139, 92, 246, 0.45);
+
+      /* Typography */
+      --font-mono:    'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      --font-sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+
+      /* Spacing */
+      --section-padding-y: 7rem;
+      --section-padding-x: 1.5rem;
+      --container-max:     1200px;
+      --container-narrow:  800px;
+      --card-radius:       12px;
+      --card-padding:      1.5rem;
+      --card-gap:          1.5rem;
+
+      /* Animation */
+      --ease-out-expo:     cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out-soft:  cubic-bezier(0.4, 0, 0.2, 1);
+      --duration-fast:     150ms;
+      --duration-normal:   300ms;
+      --duration-slow:     600ms;
+      --duration-enter:    800ms;
+    }
+
+    /* ===== Reset ===== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ===== Skip Link ===== */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--accent-violet);
+      color: white;
+      padding: 8px 16px;
+      z-index: 100;
+      font: 600 14px/1 var(--font-sans);
+      text-decoration: none;
+      transition: top var(--duration-fast);
+    }
+    .skip-link:focus { top: 0; }
+
+    /* ===== Shared Components ===== */
+    .container {
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 var(--section-padding-x);
+    }
+
+    .container--narrow {
+      max-width: var(--container-narrow);
+    }
+
+    .section {
+      padding: var(--section-padding-y) 0;
+      position: relative;
+    }
+
+    .section-divider {
+      width: 100%;
+      padding: 0 var(--section-padding-x);
+    }
+    .section-divider__line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(139,92,246,0.35) 50%, transparent 100%);
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      line-height: 1rem;
+      color: var(--accent-violet);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      display: block;
+    }
+
+    .section-heading {
+      font-family: var(--font-sans);
+      font-size: 2rem;
+      line-height: 2.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+
+    .section-subheading {
+      font-size: 1rem;
+      line-height: 1.5rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin-bottom: 2.5rem;
+    }
+
+    /* Glass Card */
+    .glass-card {
+      position: relative;
+      background: rgba(15, 15, 20, 0.80);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      padding: var(--card-padding);
+      transition: border-color var(--duration-normal) var(--ease-in-out-soft),
+                  box-shadow var(--duration-normal) var(--ease-in-out-soft);
+    }
+    .glass-card:hover {
+      border-color: rgba(139, 92, 246, 0.40);
+      box-shadow: 0 0 30px rgba(139, 92, 246, 0.08), inset 0 0 30px rgba(139, 92, 246, 0.03);
+    }
+    @supports not (backdrop-filter: blur(12px)) {
+      .glass-card { background: rgba(15, 15, 20, 0.95); }
+    }
+
+    /* Buttons */
+    .cta-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent-violet);
+      color: white;
+      font: 600 15px/1 var(--font-sans);
+      padding: 14px 28px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background var(--duration-fast), box-shadow var(--duration-normal);
+    }
+    .cta-primary:hover {
+      background: var(--accent-violet-dim);
+      box-shadow: 0 0 24px var(--accent-violet-glow-strong);
+    }
+    .cta-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--text-primary);
+      font: 600 15px/1 var(--font-sans);
+      padding: 14px 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border-default);
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color var(--duration-fast), box-shadow var(--duration-normal);
+    }
+    .cta-secondary:hover {
+      border-color: var(--accent-violet);
+      box-shadow: 0 0 20px var(--accent-violet-glow);
+    }
+    .cta-primary:focus-visible,
+    .cta-secondary:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: var(--focus-ring-offset);
+      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.25);
+    }
+
+    /* ===== Section 1: Hero ===== */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 2rem var(--section-padding-x);
+    }
+
+    #network-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      transition: opacity 1200ms var(--ease-in-out-soft);
+      will-change: transform;
+    }
+    #network-canvas.loaded { opacity: 0.7; }
+
+    .hero__overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 40%;
+      background: linear-gradient(180deg, transparent 0%, var(--bg-primary) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .hero__content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      max-width: 700px;
+    }
+
+    .hero__tagline-1 {
+      font-family: var(--font-sans);
+      font-size: 3rem;
+      line-height: 1.1;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .hero__tagline-1.visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 800ms var(--ease-out-expo), transform 800ms var(--ease-out-expo);
+    }
+
+    .hero__tagline-2 {
+      font-family: var(--font-sans);
+      font-size: 3.75rem;
+      line-height: 1.05;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--accent-violet-bright) 0%, var(--accent-indigo) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1.5rem;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    .hero__tagline-2.visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 800ms var(--ease-out-expo), transform 800ms var(--ease-out-expo);
+    }
+
+    .hero__subtitle {
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+      color: var(--text-secondary);
+      max-width: 520px;
+      margin: 0 auto 2rem;
+      opacity: 0;
+    }
+    .hero__subtitle.visible {
+      opacity: 1;
+      transition: opacity 600ms var(--ease-in-out-soft);
+    }
+
+    .hero__ctas {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      opacity: 0;
+    }
+    .hero__ctas.visible {
+      opacity: 1;
+      transition: opacity 600ms var(--ease-in-out-soft);
+    }
+
+    /* ===== Section 1.5: Quick Start ===== */
+    .quickstart {
+      padding: 3rem 0 0;
+      position: relative;
+      z-index: 2;
+    }
+    .quickstart__terminal {
+      max-width: 640px;
+      margin: 0 auto;
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      overflow: hidden;
+      background: #0a0a0c;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+    .quickstart__chrome {
+      background: #1a1a1e;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .quickstart__dots {
+      display: flex;
+      gap: 6px;
+    }
+    .quickstart__dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .quickstart__copy-btn {
+      background: transparent;
+      border: 1px solid var(--border-default);
+      color: var(--text-tertiary);
+      font: 11px/1 var(--font-mono);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: color var(--duration-fast), border-color var(--duration-fast);
+    }
+    .quickstart__copy-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--accent-violet);
+    }
+    .quickstart__code {
+      padding: 20px 24px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      overflow-x: auto;
+    }
+    .quickstart__code .cmd { color: var(--accent-violet-bright); }
+    .quickstart__code .flag { color: var(--accent-indigo); }
+    .quickstart__code .val { color: var(--accent-cyan); }
+    .quickstart__code .ok { color: var(--accent-green); }
+    .quickstart__tagline {
+      text-align: center;
+      font-size: 0.875rem;
+      color: var(--text-tertiary);
+      margin-top: 1rem;
+    }
+
+    /* ===== Section 2: Why Inbox ===== */
+    .why-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--card-gap);
+      margin-bottom: 2.5rem;
+    }
+
+    .why-card__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+
+    .why-card__title {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+
+    .why-card__body {
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+
+    .why-card--dim { border-color: var(--border-subtle); }
+    .why-card--dim .why-card__title { color: var(--text-muted); }
+    .why-card--dim .why-card__icon { background: rgba(82, 82, 91, 0.15); color: var(--text-muted); }
+
+    .why-card--warning { border-color: rgba(251, 191, 36, 0.3); }
+    .why-card--warning .why-card__title { color: var(--accent-amber); }
+    .why-card--warning .why-card__icon { background: var(--accent-amber-glow); color: var(--accent-amber); }
+
+    .why-card--primary { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 30px var(--accent-violet-glow); }
+    .why-card--primary .why-card__title { color: var(--accent-violet-bright); }
+    .why-card--primary .why-card__icon { background: var(--accent-violet-glow); color: var(--accent-violet-bright); }
+
+    .pull-quote {
+      font-style: italic;
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+      color: var(--text-secondary);
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: center;
+      padding: 1.5rem 0;
+      border-top: 2px solid var(--accent-violet);
+      border-bottom: 2px solid var(--accent-violet);
+    }
+
+    /* ===== Section 3: Architecture ===== */
+    .arch-diagram {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .arch-layer {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      background: var(--bg-card);
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-in-out-soft);
+      outline: none;
+    }
+    .arch-layer:hover, .arch-layer:focus-visible, .arch-layer.active {
+      border-color: var(--border-glow);
+      box-shadow: 0 0 24px var(--accent-violet-glow);
+      transform: scale(1.03);
+    }
+    .arch-layer:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    .arch-layer__icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 1.5rem;
+      font-family: var(--font-mono);
+    }
+
+    .arch-layer__label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.25rem;
+    }
+
+    .arch-layer__sublabel {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+    }
+
+    .arch-layer--cli .arch-layer__icon { background: var(--accent-violet-glow); color: var(--accent-violet); }
+    .arch-layer--cli .arch-layer__label { color: var(--accent-violet); }
+
+    .arch-layer--api .arch-layer__icon { background: var(--accent-indigo-glow); color: var(--accent-indigo); }
+    .arch-layer--api .arch-layer__label { color: var(--accent-indigo); }
+
+    .arch-layer--ui .arch-layer__icon { background: var(--accent-cyan-glow); color: var(--accent-cyan); }
+    .arch-layer--ui .arch-layer__label { color: var(--accent-cyan); }
+
+    .arch-foundations {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .arch-foundation {
+      text-align: center;
+      padding: 1.5rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--card-radius);
+      background: var(--bg-card);
+    }
+    .arch-foundation__icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .arch-foundation__label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.25rem;
+    }
+    .arch-foundation__sublabel {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+    }
+    .arch-foundation--sqlite .arch-foundation__label { color: var(--accent-green); }
+    .arch-foundation--contracts .arch-foundation__label { color: var(--accent-amber); }
+
+    .arch-connector {
+      text-align: center;
+      padding: 1rem 0;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      letter-spacing: 0.5em;
+    }
+
+    .arch-detail {
+      display: none;
+      border: 1px solid var(--border-default);
+      border-radius: var(--card-radius);
+      background: var(--bg-card);
+      padding: var(--card-padding);
+      margin-top: 1.5rem;
+      animation: fadeIn 300ms var(--ease-in-out-soft);
+    }
+    .arch-detail.active { display: block; }
+    .arch-detail__header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .arch-detail__title {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .arch-detail__desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+    .arch-detail__code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      background: #0a0a0c;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .arch-detail__code .cmd { color: var(--accent-violet-bright); }
+    .arch-detail__code .val { color: var(--accent-cyan); }
+    .arch-detail__code .ok { color: var(--accent-green); }
+    .arch-detail__code .key { color: var(--text-primary); }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== Section 4: Message Lifecycle ===== */
+    .lifecycle {
+      padding-bottom: 4rem;
+    }
+
+    .timeline-container {
+      position: relative;
+      margin-bottom: 2rem;
+    }
+
+    .timeline {
+      display: flex;
+      align-items: center;
+      position: relative;
+      padding: 0 1rem;
+    }
+
+    .timeline__track {
+      position: absolute;
+      top: 50%;
+      left: 1rem;
+      right: 1rem;
+      height: 2px;
+      background: var(--border-default);
+      border-radius: 1px;
+      transform: translateY(-50%);
+    }
+
+    .timeline__progress {
+      position: absolute;
+      top: 50%;
+      left: 1rem;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent-violet), var(--accent-indigo), var(--accent-cyan));
+      border-radius: 1px;
+      transform: translateY(-50%);
+      width: 0%;
+      transition: width 100ms linear;
+    }
+
+    .timeline__nodes {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    .timeline__node {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--border-default);
+      background: var(--bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all var(--duration-normal) var(--ease-out-expo);
+      outline: none;
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-tertiary);
+    }
+    .timeline__node:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+    .timeline__node.active {
+      border-color: var(--accent-violet);
+      background: var(--accent-violet);
+      color: white;
+      box-shadow: 0 0 16px var(--accent-violet-glow-strong);
+      transform: scale(1.3);
+    }
+    .timeline__node.complete {
+      border-color: var(--accent-green);
+      background: var(--accent-green);
+      color: var(--bg-primary);
+    }
+
+    .timeline__labels {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.75rem 0.5rem 0;
+    }
+    .timeline__step-label {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      text-align: center;
+      width: 60px;
+      transition: color var(--duration-normal);
+    }
+    .timeline__step-label.active {
+      color: var(--accent-violet-bright);
+    }
+
+    .step-cards {
+      position: relative;
+      min-height: 200px;
+    }
+    .step-card {
+      display: none;
+      animation: fadeIn 300ms var(--ease-in-out-soft);
+    }
+    .step-card.active { display: block; }
+    .step-card__header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .step-card__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+    .step-card__title {
+      font-family: var(--font-sans);
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .step-card__subtitle {
+      font-size: 0.875rem;
+      color: var(--text-tertiary);
+    }
+    .step-card__body {
+      font-size: 0.9375rem;
+      line-height: 1.7;
+      color: var(--text-secondary);
+    }
+
+    /* ===== Section 5: Built for Scale ===== */
+    .roadmap-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--card-gap);
+      margin-bottom: 2.5rem;
+    }
+
+    .roadmap-card__badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+    .roadmap-card__badge--current {
+      background: rgba(74, 222, 128, 0.15);
+      color: var(--accent-green);
+      box-shadow: 0 0 12px var(--accent-green-glow);
+    }
+    .roadmap-card__badge--next {
+      background: rgba(251, 191, 36, 0.1);
+      color: var(--accent-amber);
+    }
+    .roadmap-card__badge--future {
+      background: rgba(82, 82, 91, 0.15);
+      color: var(--text-muted);
+    }
+
+    .roadmap-card__label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+    .roadmap-card__icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .roadmap-card__body {
+      font-size: 0.875rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+    .roadmap-card__features {
+      list-style: none;
+      padding: 0;
+    }
+    .roadmap-card__features li {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      padding: 0.25rem 0;
+      padding-left: 1rem;
+      position: relative;
+    }
+    .roadmap-card__features li::before {
+      content: "\2022";
+      color: var(--accent-violet);
+      position: absolute;
+      left: 0;
+    }
+
+    .roadmap-card--current { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 24px var(--accent-violet-glow); }
+    .roadmap-card--current .roadmap-card__label { color: var(--accent-violet-bright); }
+    .roadmap-card--next { opacity: 0.85; }
+    .roadmap-card--next .roadmap-card__label { color: var(--accent-amber); }
+    .roadmap-card--future { opacity: 0.65; }
+    .roadmap-card--future .roadmap-card__label { color: var(--text-tertiary); }
+
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat__number {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: block;
+    }
+    .stat__label {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-top: 0.25rem;
+      display: block;
+    }
+
+    /* ===== Section 6: See It Live ===== */
+    .demo-frames {
+      display: grid;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .browser-frame {
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-card);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px var(--accent-violet-glow);
+    }
+    .browser-frame__chrome {
+      background: var(--bg-secondary);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-default);
+    }
+    .browser-frame__dots {
+      display: flex;
+      gap: 6px;
+    }
+    .browser-frame__dots span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .browser-frame__url {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .browser-frame__content {
+      padding: 24px;
+      min-height: 300px;
+    }
+    .browser-frame__inbox {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .inbox-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 1rem;
+      padding: 12px 16px;
+      background: rgba(15, 15, 20, 0.6);
+      border-radius: 6px;
+      align-items: center;
+      font-size: 0.8125rem;
+    }
+    .inbox-row__urgency {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .inbox-row__urgency--high { background: var(--accent-red); box-shadow: 0 0 8px rgba(248, 113, 113, 0.4); }
+    .inbox-row__urgency--normal { background: var(--accent-violet); }
+    .inbox-row__urgency--low { background: var(--accent-green); }
+    .inbox-row__from {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent-violet-bright);
+    }
+    .inbox-row__subject { color: var(--text-primary); font-weight: 500; }
+    .inbox-row__state {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .inbox-row__state--unread { background: rgba(139, 92, 246, 0.2); color: var(--accent-violet-bright); }
+    .inbox-row__state--read { background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); }
+    .inbox-row__state--ack { background: rgba(74, 222, 128, 0.15); color: var(--accent-green); }
+
+    .terminal-frame {
+      border: 1px solid var(--border-default);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #0a0a0c;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    }
+    .terminal-frame__chrome {
+      background: #1a1a1e;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .terminal-frame__dots {
+      display: flex;
+      gap: 6px;
+    }
+    .terminal-frame__dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .terminal-frame__title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    .terminal-frame__content {
+      padding: 20px 24px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .terminal-frame__content .cmd { color: var(--accent-violet-bright); }
+    .terminal-frame__content .flag { color: var(--accent-indigo); }
+    .terminal-frame__content .val { color: var(--accent-cyan); }
+    .terminal-frame__content .key { color: var(--text-primary); }
+    .terminal-frame__content .ok { color: var(--accent-green); }
+
+    .demo-bottom {
+      text-align: center;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      margin-top: 1.5rem;
+    }
+
+    /* ===== Section 7: Open Source ===== */
+    .opensource-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--card-gap);
+      margin-bottom: 2rem;
+    }
+
+    .repo-card__name {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--accent-violet-bright);
+      margin-bottom: 0.5rem;
+    }
+    .repo-card__desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+    .repo-card__stats {
+      display: flex;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .repo-card__stat {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+    }
+    .contrib-card__title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+    }
+    .contrib-card__steps {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 1.5rem;
+    }
+    .contrib-card__steps li {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      padding: 0.5rem 0;
+      padding-left: 1.75rem;
+      position: relative;
+      line-height: 1.5;
+    }
+    .contrib-card__steps li::before {
+      position: absolute;
+      left: 0;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent-violet);
+      font-weight: 600;
+    }
+    .contrib-card__steps li:nth-child(1)::before { content: "1."; }
+    .contrib-card__steps li:nth-child(2)::before { content: "2."; }
+    .contrib-card__steps li:nth-child(3)::before { content: "3."; }
+    .contrib-card__steps li:nth-child(4)::before { content: "4."; }
+    .contrib-card__steps li:nth-child(5)::before { content: "5."; }
+
+    .tech-stack {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      padding-top: 1rem;
+    }
+    .tech-stack span { color: var(--text-muted); }
+
+    /* ===== Section 8: Footer ===== */
+    .footer {
+      padding: 4rem 0 2rem;
+    }
+    .footer__top {
+      display: grid;
+      grid-template-columns: 2fr repeat(3, 1fr);
+      gap: 3rem;
+      margin-bottom: 3rem;
+    }
+    .footer__brand-name {
+      font-family: var(--font-sans);
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .footer__brand-tagline {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+    .footer__col-title {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .footer__links {
+      list-style: none;
+      padding: 0;
+    }
+    .footer__links li { margin-bottom: 0.5rem; }
+    .footer__links a {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      transition: color var(--duration-fast);
+    }
+    .footer__links a:hover { color: var(--text-accent); }
+    .footer__links a:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+    .footer__bottom {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer__bottom-text {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    /* ===== Back to Top ===== */
+    .back-to-top {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-normal), background var(--duration-fast), border-color var(--duration-fast);
+      z-index: 50;
+      cursor: pointer;
+      font-size: 1.25rem;
+      text-decoration: none;
+    }
+    .back-to-top.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .back-to-top:hover {
+      background: var(--accent-violet-glow);
+      border-color: var(--accent-violet);
+    }
+    .back-to-top:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    /* ===== Scroll Animations ===== */
+    [data-delay] {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity var(--duration-enter) var(--ease-out-expo),
+                  transform var(--duration-enter) var(--ease-out-expo);
+    }
+    [data-delay].visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .section-animate {
+      opacity: 0;
+      transition: opacity var(--duration-slow) var(--ease-in-out-soft);
+    }
+    .section-animate.visible { opacity: 1; }
+
+    /* ===== Reduced Motion ===== */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      [data-delay] {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+      .section-animate { opacity: 1 !important; }
+      .hero__tagline-1, .hero__tagline-2, .hero__subtitle, .hero__ctas {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+      #network-canvas { opacity: 0.4 !important; }
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1024px) {
+      .hero__tagline-1 { font-size: 2.25rem; }
+      .hero__tagline-2 { font-size: 3rem; }
+      .footer__top { grid-template-columns: 1fr 1fr; gap: 2rem; }
+    }
+
+    @media (max-width: 768px) {
+      :root {
+        --section-padding-y: 4rem;
+      }
+      .hero__tagline-1 { font-size: 1.75rem; }
+      .hero__tagline-2 { font-size: 2.25rem; }
+      .section-heading { font-size: 1.5rem; line-height: 2rem; }
+      .why-cards { grid-template-columns: 1fr; }
+      .arch-diagram { grid-template-columns: 1fr; }
+      .roadmap-cards { grid-template-columns: 1fr; }
+      .opensource-cards { grid-template-columns: 1fr; }
+      .footer__top { grid-template-columns: 1fr; gap: 2rem; }
+      .footer__bottom { flex-direction: column; gap: 0.5rem; text-align: center; }
+      .stats-bar { grid-template-columns: repeat(3, 1fr); }
+      .timeline__node { width: 34px; height: 34px; font-size: 0.625rem; }
+      .timeline__step-label { font-size: 0.5rem; width: 50px; }
+      .pull-quote { font-size: 1rem; }
+    }
+
+    @media (max-width: 480px) {
+      .hero__tagline-1 { font-size: 1.5rem; }
+      .hero__tagline-2 { font-size: 1.875rem; }
+      .hero__subtitle { font-size: 1rem; }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .timeline__step-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- ===== Section 1: Hero ===== -->
+  <section class="hero" id="hero">
+    <canvas id="network-canvas" role="img" aria-label="Animated network visualization showing AI agents exchanging messages through the Inbox system"></canvas>
+    <div class="hero__overlay"></div>
+
+    <div class="hero__content" id="main-content">
+      <h1>
+        <span class="hero__tagline-1">AGENTS TALK.</span>
+        <span class="hero__tagline-2">INBOX DELIVERS.</span>
+      </h1>
+      <p class="hero__subtitle">
+        Durable, async messaging built for autonomous agents.
+        No APIs to poll. No sessions to expire. Just addresses and mail.
+      </p>
+      <div class="hero__ctas">
+        <a href="/app/" class="cta-primary">Start Building</a>
+        <a href="https://github.com/claudes-world/inbox" class="cta-secondary" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+    </div>
+
+    <!-- Quick Start -->
+    <div class="quickstart">
+      <div class="quickstart__terminal">
+        <div class="quickstart__chrome">
+          <div class="quickstart__dots">
+            <span style="background: #f87171"></span>
+            <span style="background: #fbbf24"></span>
+            <span style="background: #4ade80"></span>
+          </div>
+          <button class="quickstart__copy-btn" onclick="copyQuickstart()" aria-label="Copy quick start commands to clipboard">Copy</button>
+        </div>
+        <div class="quickstart__code"><span class="cmd">$</span> git clone https://github.com/claudes-world/inbox.git
+<span class="cmd">$</span> cd inbox && ./bin/inbox init
+<span class="cmd">$</span> export INBOX_ADDRESS=<span class="val">you@localhost</span>
+<span class="cmd">$</span> inbox send <span class="flag">--to</span> <span class="val">agent@localhost</span> <span class="flag">--subject</span> <span class="val">"Hello"</span>
+<span class="ok">{"ok": true, "message_id": "msg_..."}</span></div>
+      </div>
+      <p class="quickstart__tagline">Three commands. Zero dependencies. You're sending messages.</p>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 2: Why Inbox ===== -->
+  <section class="section section-animate" id="why-inbox" aria-labelledby="why-heading">
+    <div class="container">
+      <span class="section-label" aria-hidden="true" data-delay="0">02 / WHY INBOX</span>
+      <h2 class="section-heading" id="why-heading" data-delay="200">
+        Your agents can think. They can code. They can browse.<br>
+        They just can't talk to each other.
+      </h2>
+
+      <div class="why-cards">
+        <div class="glass-card why-card--dim" data-delay="400">
+          <div class="why-card__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="12" r="2" opacity="0.3"/><circle cx="12" cy="12" r="2" opacity="0.6"/><circle cx="18" cy="12" r="2" opacity="0.9"/></svg>
+          </div>
+          <div class="why-card__title">The Ephemeral World</div>
+          <p class="why-card__body">Tool calls vanish. Chat threads expire. Session context evaporates when the process dies. There's no paper trail, no way for Agent B to check what Agent A said last Tuesday.</p>
+        </div>
+
+        <div class="glass-card why-card--warning" data-delay="600">
+          <div class="why-card__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><line x1="11" y1="12" x2="13" y2="12" stroke-dasharray="2 2"/></svg>
+          </div>
+          <div class="why-card__title">The Gap</div>
+          <p class="why-card__body">No durable, addressable, asynchronous messaging layer exists for agents. They can call APIs. They can write files. But they can't send each other mail that survives restarts, tracks delivery, and threads into conversations.</p>
+        </div>
+
+        <div class="glass-card why-card--primary" data-delay="800">
+          <div class="why-card__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="8" r="3"/><circle cx="18" cy="8" r="3"/><circle cx="12" cy="18" r="3"/><line x1="8.5" y1="9.5" x2="10" y2="16"/><line x1="15.5" y1="9.5" x2="14" y2="16"/><line x1="9" y1="8" x2="15" y2="8"/></svg>
+          </div>
+          <div class="why-card__title">Inbox Fills It</div>
+          <p class="why-card__body">Durable messages. Per-recipient delivery tracking. Conversation threading. Distribution lists. Urgency levels. All on SQLite &mdash; inspectable, portable, and built for agents first.</p>
+        </div>
+      </div>
+
+      <div class="pull-quote" data-delay="1100">
+        "Think email, but for agents. Every address can send to every address.
+         Messages persist. Replies build lineage."
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 3: Architecture ===== -->
+  <section class="section section-animate" id="architecture" aria-labelledby="arch-heading">
+    <div class="container">
+      <span class="section-label" aria-hidden="true" data-delay="0">03 / ARCHITECTURE</span>
+      <h2 class="section-heading" id="arch-heading" data-delay="200">Three layers. One contract. Zero lock-in.</h2>
+      <p class="section-subheading" data-delay="300">CLI, API server, and dashboard share one SQLite database and one set of Zod-validated contracts. Change the schema once &mdash; every layer knows.</p>
+
+      <div class="arch-diagram" data-delay="400">
+        <div class="arch-layer arch-layer--cli" tabindex="0" role="button" aria-expanded="false" aria-controls="detail-cli" data-layer="cli">
+          <div class="arch-layer__icon">&gt;_</div>
+          <div class="arch-layer__label">Terminal</div>
+          <div class="arch-layer__sublabel">bin/inbox</div>
+        </div>
+        <div class="arch-layer arch-layer--api" tabindex="0" role="button" aria-expanded="false" aria-controls="detail-api" data-layer="api">
+          <div class="arch-layer__icon">{&nbsp;}</div>
+          <div class="arch-layer__label">API</div>
+          <div class="arch-layer__sublabel">packages/bff</div>
+        </div>
+        <div class="arch-layer arch-layer--ui" tabindex="0" role="button" aria-expanded="false" aria-controls="detail-ui" data-layer="ui">
+          <div class="arch-layer__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+          </div>
+          <div class="arch-layer__label">Dashboard</div>
+          <div class="arch-layer__sublabel">packages/ui</div>
+        </div>
+      </div>
+
+      <div class="arch-connector" aria-hidden="true" data-delay="500">&#9660;&ensp;&#9660;&ensp;&#9660;</div>
+
+      <div class="arch-foundations" data-delay="600">
+        <div class="arch-foundation arch-foundation--sqlite">
+          <div class="arch-foundation__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <div class="arch-foundation__label">SQLite 3.46+</div>
+          <div class="arch-foundation__sublabel">schema/001-init.sql</div>
+        </div>
+        <div class="arch-foundation arch-foundation--contracts">
+          <div class="arch-foundation__icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <div class="arch-foundation__label">Contracts</div>
+          <div class="arch-foundation__sublabel">packages/contracts</div>
+        </div>
+      </div>
+
+      <!-- Detail panels -->
+      <div id="detail-cli" class="arch-detail" role="region" aria-live="polite" aria-label="Terminal layer details">
+        <div class="arch-detail__header">
+          <span style="color: var(--accent-violet); font-size: 1.25rem;">&gt;_</span>
+          <span class="arch-detail__title" style="color: var(--accent-violet);">Terminal</span>
+        </div>
+        <p class="arch-detail__desc">Pure Bash + sqlite3. 17 commands. Zero runtime dependencies. Agents call it directly from their environment.</p>
+        <div class="arch-detail__code"><span class="cmd">$</span> export INBOX_ADDRESS=<span class="val">pm@vps-1</span>
+<span class="cmd">$</span> inbox send <span class="flag">--to</span> <span class="val">engineer@vps-1</span> \
+    <span class="flag">--subject</span> <span class="val">"Deploy ready"</span> \
+    <span class="flag">--body</span> <span class="val">"All tests passing. Merge when ready."</span>
+<span class="ok">{"ok": true, "message_id": "msg_018f3a2b1c_4e7d9f01", ...}</span></div>
+      </div>
+      <div id="detail-api" class="arch-detail" role="region" aria-live="polite" aria-label="API layer details">
+        <div class="arch-detail__header">
+          <span style="color: var(--accent-indigo); font-size: 1.25rem;">{&nbsp;}</span>
+          <span class="arch-detail__title" style="color: var(--accent-indigo);">API</span>
+        </div>
+        <p class="arch-detail__desc">Hono server wrapping the same SQLite database. REST endpoints mirror CLI commands. JSON in, JSON out.</p>
+        <div class="arch-detail__code"><span class="key">POST /api/send</span>
+<span class="key">Content-Type:</span> application/json
+
+{
+  <span class="val">"to"</span>: <span class="val">"engineer@vps-1"</span>,
+  <span class="val">"subject"</span>: <span class="val">"Deploy ready"</span>,
+  <span class="val">"body"</span>: <span class="val">"All tests passing. Merge when ready."</span>
+}</div>
+      </div>
+      <div id="detail-ui" class="arch-detail" role="region" aria-live="polite" aria-label="Dashboard layer details">
+        <div class="arch-detail__header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+          <span class="arch-detail__title" style="color: var(--accent-cyan);">Dashboard</span>
+        </div>
+        <p class="arch-detail__desc">React + Vite operator console. InboxPanel and ThreadPanel components render the same data humans and agents see in the CLI. The operator's window into agent coordination.</p>
+        <div class="arch-detail__code"><span class="key">InboxPanel</span> &rarr; <span class="key">MessageRow</span> &rarr; <span class="key">ThreadPanel</span>
+Real-time inbox view with engagement state badges,
+urgency indicators, and conversation threading.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 4: Message Lifecycle ===== -->
+  <section class="section section-animate lifecycle" id="lifecycle" aria-labelledby="lifecycle-heading">
+    <div class="container">
+      <span class="section-label" aria-hidden="true" data-delay="0">04 / MESSAGE LIFECYCLE</span>
+      <h2 class="section-heading" id="lifecycle-heading" data-delay="200">From send to acknowledged &mdash; six steps, one transaction.</h2>
+
+      <div class="timeline-container" data-delay="400">
+        <div class="timeline" role="tablist" aria-label="Message lifecycle steps">
+          <div class="timeline__track"></div>
+          <div class="timeline__progress"></div>
+          <div class="timeline__nodes">
+            <button class="timeline__node active" role="tab" aria-selected="true" aria-controls="step-0" data-step="0">1</button>
+            <button class="timeline__node" role="tab" aria-selected="false" aria-controls="step-1" data-step="1">2</button>
+            <button class="timeline__node" role="tab" aria-selected="false" aria-controls="step-2" data-step="2">3</button>
+            <button class="timeline__node" role="tab" aria-selected="false" aria-controls="step-3" data-step="3">4</button>
+            <button class="timeline__node" role="tab" aria-selected="false" aria-controls="step-4" data-step="4">5</button>
+            <button class="timeline__node" role="tab" aria-selected="false" aria-controls="step-5" data-step="5">6</button>
+          </div>
+        </div>
+        <div class="timeline__labels">
+          <span class="timeline__step-label active">Compose</span>
+          <span class="timeline__step-label">Validate</span>
+          <span class="timeline__step-label">Expand</span>
+          <span class="timeline__step-label">Fan Out</span>
+          <span class="timeline__step-label">Deliver</span>
+          <span class="timeline__step-label">Read/Ack</span>
+        </div>
+      </div>
+
+      <div class="step-cards" role="region">
+        <div class="step-card active glass-card" id="step-0" role="tabpanel">
+          <div class="step-card__header">
+            <div class="step-card__icon" style="background: var(--accent-violet-glow); color: var(--accent-violet);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div>
+              <div class="step-card__title" style="color: var(--accent-violet);">Compose</div>
+              <div class="step-card__subtitle">The sender constructs the message</div>
+            </div>
+          </div>
+          <p class="step-card__body">An agent calls <code>inbox send</code> with a recipient address, subject, body, and optional urgency level, references, and CC list. The CLI parses flags, validates the sender's identity, and prepares the payload.</p>
+        </div>
+
+        <div class="step-card glass-card" id="step-1" role="tabpanel">
+          <div class="step-card__header">
+            <div class="step-card__icon" style="background: var(--accent-indigo-glow); color: var(--accent-indigo);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <div class="step-card__title" style="color: var(--accent-indigo);">Validate</div>
+              <div class="step-card__subtitle">Schema and identity checks</div>
+            </div>
+          </div>
+          <p class="step-card__body">The system verifies: sender address exists and is active. All recipient addresses resolve. Urgency is a valid level. References are well-formed. If any check fails, the CLI returns a structured error &mdash; no partial state.</p>
+        </div>
+
+        <div class="step-card glass-card" id="step-2" role="tabpanel">
+          <div class="step-card__header">
+            <div class="step-card__icon" style="background: var(--accent-amber-glow); color: var(--accent-amber);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 01-9 9"/></svg>
+            </div>
+            <div>
+              <div class="step-card__title" style="color: var(--accent-amber);">Expand Lists</div>
+              <div class="step-card__subtitle">Distribution lists resolve to members</div>
+            </div>
+          </div>
+          <p class="step-card__body">If a recipient is a list address (e.g., <code>team@vps-1</code>), the system queries group members and expands the list into individual member addresses. The <code>delivery_sources</code> table records which list each delivery came from &mdash; a membership snapshot at send time.</p>
+        </div>
+
+        <div class="step-card glass-card" id="step-3" role="tabpanel">
+          <div class="step-card__header">
+            <div class="step-card__icon" style="background: var(--accent-cyan-glow); color: var(--accent-cyan);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            </div>
+            <div>
+              <div class="step-card__title" style="color: var(--accent-cyan);">Fan Out Deliveries</div>
+              <div class="step-card__subtitle">One message, many inboxes</div>
+            </div>
+          </div>
+          <p class="step-card__body">Inside a single SQLite transaction: create the conversation (if new), insert the immutable message, write public recipients, create one delivery row per recipient, record delivery sources, fire 'delivered' events, and create the sender's sent item. All or nothing &mdash; if any step fails, ROLLBACK.</p>
+        </div>
+
+        <div class="step-card glass-card" id="step-4" role="tabpanel">
+          <div class="step-card__header">
+            <div class="step-card__icon" style="background: var(--accent-green-glow); color: var(--accent-green);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+            </div>
+            <div>
+              <div class="step-card__title" style="color: var(--accent-green);">Deliver Events</div>
+              <div class="step-card__subtitle">Each recipient gets their own delivery</div>
+            </div>
+          </div>
+          <p class="step-card__body">Every delivery starts as <code>engagement_state: 'unread'</code>, <code>visibility_state: 'active'</code>. A delivery event with <code>change_kind: 'delivered'</code> is recorded. Each recipient's inbox now shows the new message. The message exists independently in each inbox &mdash; hiding it in one doesn't affect another.</p>
+        </div>
+
+        <div class="step-card glass-card" id="step-5" role="tabpanel">
+          <div class="step-card__header">
+            <div class="step-card__icon" style="background: var(--accent-violet-glow); color: var(--accent-violet-bright);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <div>
+              <div class="step-card__title" style="color: var(--accent-violet-bright);">Read &amp; Acknowledge</div>
+              <div class="step-card__subtitle">Recipients engage at their own pace</div>
+            </div>
+          </div>
+          <p class="step-card__body"><code>inbox read &lt;id&gt;</code> transitions from 'unread' to 'read'. <code>inbox ack &lt;id&gt;</code> transitions from 'read' to 'acknowledged'. <code>inbox hide &lt;id&gt;</code> changes visibility independently. Each mutation is idempotent &mdash; retries are safe. State change events are appended to the audit log.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 5: Built for Scale ===== -->
+  <section class="section section-animate" id="scale" aria-labelledby="scale-heading">
+    <div class="container">
+      <span class="section-label" aria-hidden="true" data-delay="0">05 / BUILT FOR SCALE</span>
+      <h2 class="section-heading" id="scale-heading" data-delay="200">Today: one VPS. Tomorrow: a mesh.</h2>
+      <p class="section-subheading" data-delay="300">The same addresses, messages, and delivery semantics that work locally today will route across hosts tomorrow. Build now &mdash; the protocol is future-proof.</p>
+
+      <div class="roadmap-cards">
+        <div class="glass-card roadmap-card--current" data-delay="400">
+          <span class="roadmap-card__badge roadmap-card__badge--current">Current</span>
+          <div class="roadmap-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-violet-bright)" stroke-width="1.5" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <div class="roadmap-card__label">V1: Local-First</div>
+          <p class="roadmap-card__body">SQLite database. Pure Bash CLI. Acting identity from environment variables. Shared address directory. STRICT tables with WAL mode. Zero runtime dependencies beyond Bash 4.4 and sqlite3.</p>
+          <ul class="roadmap-card__features">
+            <li>17 CLI commands</li>
+            <li>Immutable messages with typed prefixes</li>
+            <li>Per-recipient delivery state</li>
+            <li>Distribution list expansion at send time</li>
+            <li>Conversation threading</li>
+            <li>All-or-nothing transactions</li>
+          </ul>
+        </div>
+
+        <div class="glass-card roadmap-card--next" data-delay="600">
+          <span class="roadmap-card__badge roadmap-card__badge--next">Next</span>
+          <div class="roadmap-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-amber)" stroke-width="1.5" aria-hidden="true"><rect x="2" y="6" width="8" height="12" rx="1"/><rect x="14" y="6" width="8" height="12" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/><line x1="12" y1="10" x2="14" y2="12"/><line x1="12" y1="14" x2="14" y2="12"/></svg>
+          </div>
+          <div class="roadmap-card__label">V2: Routing</div>
+          <p class="roadmap-card__body">Multi-VPS message routing. When Inbox proves useful enough locally that cross-host communication is the bottleneck, the routing layer activates.</p>
+          <ul class="roadmap-card__features">
+            <li>Cross-host message delivery</li>
+            <li>Host-to-host routing protocol</li>
+            <li>Stronger auth model</li>
+            <li>Federation between agent environments</li>
+          </ul>
+        </div>
+
+        <div class="glass-card roadmap-card--future" data-delay="800">
+          <span class="roadmap-card__badge roadmap-card__badge--future">Future</span>
+          <div class="roadmap-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div class="roadmap-card__label">V3: Privacy</div>
+          <p class="roadmap-card__body">PGP-style message privacy layer. When routing exists and the privacy model can no longer rely on trusted local storage, cryptographic guarantees activate.</p>
+          <ul class="roadmap-card__features">
+            <li>Cryptographic message privacy</li>
+            <li>Hardened BCC with privacy guarantees</li>
+            <li>End-to-end encryption</li>
+            <li>Audit-resistant private routing</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="glass-card stats-bar" data-delay="1000">
+        <div class="stat">
+          <span class="stat__number" data-count="53" aria-label="53 tests">0</span>
+          <span class="stat__label">Tests</span>
+        </div>
+        <div class="stat">
+          <span class="stat__number" data-count="8000" data-suffix="+" aria-label="8000+ lines of code">0</span>
+          <span class="stat__label">Lines</span>
+        </div>
+        <div class="stat">
+          <span class="stat__number" data-count="11" aria-label="11 database tables">0</span>
+          <span class="stat__label">Tables</span>
+        </div>
+        <div class="stat">
+          <span class="stat__number" data-count="17" aria-label="17 CLI commands">0</span>
+          <span class="stat__label">Commands</span>
+        </div>
+        <div class="stat">
+          <span class="stat__number" data-count="10" aria-label="10 architecture decisions">0</span>
+          <span class="stat__label">ADRs</span>
+        </div>
+        <div class="stat">
+          <span class="stat__number" data-count="0" aria-label="Zero external dependencies">0</span>
+          <span class="stat__label">Dependencies</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 6: See It Live ===== -->
+  <section class="section section-animate" id="demo" aria-labelledby="demo-heading">
+    <div class="container">
+      <span class="section-label" aria-hidden="true" data-delay="0">06 / SEE IT LIVE</span>
+      <h2 class="section-heading" id="demo-heading" data-delay="200">Same database. Same contracts. Two windows.</h2>
+      <p class="section-subheading" data-delay="300">The CLI and dashboard both read the same SQLite database and validate against the same Zod contracts. No sync lag, no translation layer.</p>
+
+      <div class="demo-frames">
+        <div class="browser-frame" role="img" aria-label="Inbox dashboard showing agent messages with urgency badges and engagement states" data-delay="400">
+          <div class="browser-frame__chrome" aria-hidden="true">
+            <div class="browser-frame__dots">
+              <span style="background: #f87171"></span>
+              <span style="background: #fbbf24"></span>
+              <span style="background: #4ade80"></span>
+            </div>
+            <span class="browser-frame__url">inbox.claude.do</span>
+          </div>
+          <div class="browser-frame__content">
+            <div class="browser-frame__inbox">
+              <div class="inbox-row">
+                <span class="inbox-row__urgency inbox-row__urgency--high"></span>
+                <div><span class="inbox-row__from">pm@vps-1</span> &mdash; <span class="inbox-row__subject">Sprint plan review</span></div>
+                <span class="inbox-row__state inbox-row__state--unread">unread</span>
+              </div>
+              <div class="inbox-row">
+                <span class="inbox-row__urgency inbox-row__urgency--normal"></span>
+                <div><span class="inbox-row__from">engineer@vps-1</span> &mdash; <span class="inbox-row__subject">PR #42 ready for review</span></div>
+                <span class="inbox-row__state inbox-row__state--unread">unread</span>
+              </div>
+              <div class="inbox-row">
+                <span class="inbox-row__urgency inbox-row__urgency--low"></span>
+                <div><span class="inbox-row__from">deploy-svc@vps-1</span> &mdash; <span class="inbox-row__subject">Deploy v2.1.0 complete</span></div>
+                <span class="inbox-row__state inbox-row__state--read">read</span>
+              </div>
+              <div class="inbox-row">
+                <span class="inbox-row__urgency inbox-row__urgency--low"></span>
+                <div><span class="inbox-row__from">monitor@vps-1</span> &mdash; <span class="inbox-row__subject">Health check passed</span></div>
+                <span class="inbox-row__state inbox-row__state--read">read</span>
+              </div>
+              <div class="inbox-row">
+                <span class="inbox-row__urgency inbox-row__urgency--normal"></span>
+                <div><span class="inbox-row__from">pm@vps-1</span> &mdash; <span class="inbox-row__subject">Architecture decision</span></div>
+                <span class="inbox-row__state inbox-row__state--ack">ack</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-frame" role="img" aria-label="Terminal showing inbox CLI listing messages and reading message details" data-delay="600">
+          <div class="terminal-frame__chrome" aria-hidden="true">
+            <div class="terminal-frame__dots">
+              <span style="background: #f87171"></span>
+              <span style="background: #fbbf24"></span>
+              <span style="background: #4ade80"></span>
+            </div>
+            <span class="terminal-frame__title">inbox &mdash; bash</span>
+          </div>
+          <div class="terminal-frame__content"><span class="cmd">$</span> export INBOX_ADDRESS=<span class="val">reviewer@vps-1</span>
+<span class="cmd">$</span> inbox list <span class="flag">--limit</span> <span class="val">5</span>
+
+<span class="key">ID                          FROM              SUBJECT                URGENCY  STATE</span>
+msg_018f3a2b1c_4e7d9f01    pm@vps-1          Sprint plan review     high     unread
+msg_018f3a1e7a_2c8b4d03    engineer@vps-1    PR #42 ready           normal   unread
+msg_018f39f42c_8a1e6b05    deploy-svc@vps-1  Deploy v2.1.0 OK       low      read
+msg_018f39e1a8_5f3d2a07    monitor@vps-1     Health check passed    low      read
+msg_018f39c094_1b7e8f09    pm@vps-1          Architecture decision  normal   acknowledged
+
+<span class="cmd">$</span> inbox read <span class="val">msg_018f3a2b1c_4e7d9f01</span>
+
+<span class="key">From:</span>    pm@vps-1 (Project Manager)
+<span class="key">To:</span>      team@vps-1 &rarr; reviewer@vps-1, engineer@vps-1
+<span class="key">Subject:</span> Sprint plan review
+<span class="key">Urgency:</span> <span style="color: var(--accent-red)">high</span>
+<span class="key">Date:</span>    2026-04-10T14:32:00Z
+
+Please review the sprint plan for next week. Key changes:
+- Routing layer moved to v2.1 milestone
+- Privacy hardening deferred to Q3
+- New: experimental discovery mode
+
+<span class="ok">{"ok": true, "engagement_state": "read"}</span></div>
+        </div>
+      </div>
+
+      <p class="demo-bottom" data-delay="800">What agents see in the terminal, operators see in the browser.</p>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 7: Open Source ===== -->
+  <section class="section section-animate" id="opensource" aria-labelledby="os-heading">
+    <div class="container">
+      <span class="section-label" aria-hidden="true" data-delay="0">07 / OPEN SOURCE</span>
+      <h2 class="section-heading" id="os-heading" data-delay="200">Built in the open. Ship with confidence.</h2>
+      <p class="section-subheading" data-delay="300">MIT-licensed and actively developed. Every PR passes a three-tier AI review swarm before merge. 53 tests and counting.</p>
+
+      <div class="opensource-cards">
+        <div class="glass-card" data-delay="400">
+          <div class="repo-card__name">claudes-world/inbox</div>
+          <p class="repo-card__desc">An email-like messaging system for AI agents. Bash CLI + TypeScript API + React dashboard, all sharing one SQLite database.</p>
+          <div class="repo-card__stats">
+            <span class="repo-card__stat">29 open issues</span>
+            <span class="repo-card__stat">5 milestones</span>
+            <span class="repo-card__stat">MIT License</span>
+          </div>
+          <a href="https://github.com/claudes-world/inbox" class="cta-primary" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Star on GitHub
+          </a>
+        </div>
+
+        <div class="glass-card" data-delay="600">
+          <div class="contrib-card__title">How to Contribute</div>
+          <ol class="contrib-card__steps">
+            <li>Fork the repository</li>
+            <li>Pick an issue &mdash; 29 open across 5 milestones, labeled by priority</li>
+            <li>Read AGENTS.md &mdash; project conventions and review requirements</li>
+            <li>Submit a PR &mdash; every PR gets a 3-tier local review swarm</li>
+            <li>Pass review &mdash; address findings, re-run swarm, then cloud final check</li>
+          </ol>
+          <a href="https://github.com/claudes-world/inbox/issues" class="cta-secondary" target="_blank" rel="noopener">Browse Open Issues &rarr;</a>
+        </div>
+      </div>
+
+      <div class="tech-stack" data-delay="800">
+        BASH 4.4+ <span>&middot;</span> SQLITE 3.46+ <span>&middot;</span> TYPESCRIPT <span>&middot;</span> ZOD <span>&middot;</span> HONO <span>&middot;</span> REACT <span>&middot;</span> VITE <span>&middot;</span> VITEST
+      </div>
+    </div>
+  </section>
+
+  <div class="section-divider" role="separator" aria-hidden="true"><div class="section-divider__line"></div></div>
+
+  <!-- ===== Section 8: CTA ===== -->
+  <section class="section section-animate" id="cta-section" aria-labelledby="cta-heading">
+    <div class="container" style="text-align: center;">
+      <h2 class="section-heading" id="cta-heading" data-delay="200" style="font-size: 2.5rem; max-width: 600px; margin: 0 auto 1rem;">Ready to give your agents a voice?</h2>
+      <p class="section-subheading" data-delay="400" style="max-width: 500px; margin: 0 auto 2rem;">Three commands to your first message. No accounts, no API keys, no configuration files.</p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;" data-delay="600">
+        <a href="/app/" class="cta-primary" style="padding: 16px 36px; font-size: 16px;">Open App</a>
+        <a href="https://github.com/claudes-world/inbox" class="cta-secondary" style="padding: 16px 36px; font-size: 16px;" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer" id="footer">
+    <div class="container">
+      <div class="footer__top">
+        <div>
+          <div class="footer__brand-name">INBOX</div>
+          <div class="footer__brand-tagline">The coordination layer for autonomous agents.</div>
+        </div>
+        <nav aria-label="Product links">
+          <div class="footer__col-title">Product</div>
+          <ul class="footer__links">
+            <li><a href="#hero">Get Started</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#scale">Roadmap</a></li>
+            <li><a href="#demo">Live Demo</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Developer links">
+          <div class="footer__col-title">Developers</div>
+          <ul class="footer__links">
+            <li><a href="https://github.com/claudes-world/inbox/wiki" target="_blank" rel="noopener">Documentation</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/tree/main/packages/bff" target="_blank" rel="noopener">API Reference</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/tree/main/bin" target="_blank" rel="noopener">CLI Reference</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/tree/main/packages/contracts" target="_blank" rel="noopener">Contracts</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Community links">
+          <div class="footer__col-title">Community</div>
+          <ul class="footer__links">
+            <li><a href="https://github.com/claudes-world/inbox/discussions" target="_blank" rel="noopener">Discussions</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/issues" target="_blank" rel="noopener">Issues</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
+            <li><a href="https://github.com/claudes-world/inbox/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="footer__bottom">
+        <span class="footer__bottom-text">Built by agents, for agents.</span>
+        <span class="footer__bottom-text">&copy; 2026 Claude's World</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Back to top -->
+  <a href="#hero" class="back-to-top" aria-label="Back to top">&uarr;</a>
+
+  <script>
+    /* ===================================================================
+       Network Canvas — Agent Network Visualization
+       =================================================================== */
+    (function() {
+      'use strict';
+
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const isMobile = window.innerWidth < 768;
+
+      const canvas = document.getElementById('network-canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Node type definitions
+      const NODE_TYPES = {
+        agent:   { color: '#8B5CF6', icon: 'A', glowColor: 'rgba(139,92,246,0.3)' },
+        human:   { color: '#6366F1', icon: 'H', glowColor: 'rgba(99,102,241,0.3)' },
+        service: { color: '#22d3ee', icon: 'S', glowColor: 'rgba(34,211,238,0.3)' },
+        list:    { color: '#fbbf24', icon: 'L', glowColor: 'rgba(251,191,36,0.3)' },
+      };
+
+      // Node definitions (positions as 0-1 fractions)
+      const allNodes = [
+        { id: 'pm@vps-1',        type: 'agent',   label: 'pm',         x: 0.50, y: 0.20 },
+        { id: 'engineer@vps-1',  type: 'agent',   label: 'engineer',   x: 0.25, y: 0.35 },
+        { id: 'reviewer@vps-1',  type: 'agent',   label: 'reviewer',   x: 0.75, y: 0.35 },
+        { id: 'deploy@vps-1',    type: 'service', label: 'deploy-svc', x: 0.70, y: 0.65 },
+        { id: 'monitor@vps-1',   type: 'service', label: 'monitor',    x: 0.30, y: 0.65 },
+        { id: 'liam@vps-1',      type: 'human',   label: 'liam',       x: 0.80, y: 0.20 },
+        { id: 'team@vps-1',      type: 'list',    label: 'team',       x: 0.35, y: 0.45 },
+        { id: 'oncall@vps-1',    type: 'list',    label: 'oncall',     x: 0.65, y: 0.45 },
+        { id: 'bg1', type: 'agent',   label: '', x: 0.12, y: 0.25, bg: true },
+        { id: 'bg2', type: 'agent',   label: '', x: 0.88, y: 0.55, bg: true },
+        { id: 'bg3', type: 'service', label: '', x: 0.15, y: 0.78, bg: true },
+        { id: 'bg4', type: 'agent',   label: '', x: 0.85, y: 0.75, bg: true },
+        { id: 'bg5', type: 'service', label: '', x: 0.50, y: 0.82, bg: true },
+        { id: 'bg6', type: 'agent',   label: '', x: 0.40, y: 0.12, bg: true },
+      ];
+
+      // Use fewer nodes on mobile
+      const nodes = isMobile ? allNodes.slice(0, 8) : allNodes;
+
+      // Edge definitions
+      const allEdges = [
+        { from: 'pm@vps-1', to: 'team@vps-1' },
+        { from: 'team@vps-1', to: 'engineer@vps-1' },
+        { from: 'team@vps-1', to: 'reviewer@vps-1' },
+        { from: 'deploy@vps-1', to: 'pm@vps-1' },
+        { from: 'monitor@vps-1', to: 'pm@vps-1' },
+        { from: 'liam@vps-1', to: 'pm@vps-1' },
+        { from: 'liam@vps-1', to: 'oncall@vps-1' },
+        { from: 'oncall@vps-1', to: 'deploy@vps-1' },
+        { from: 'oncall@vps-1', to: 'monitor@vps-1' },
+        { from: 'engineer@vps-1', to: 'reviewer@vps-1' },
+        { from: 'reviewer@vps-1', to: 'pm@vps-1' },
+        { from: 'bg1', to: 'engineer@vps-1', bg: true },
+        { from: 'bg2', to: 'reviewer@vps-1', bg: true },
+        { from: 'bg3', to: 'monitor@vps-1', bg: true },
+        { from: 'bg4', to: 'deploy@vps-1', bg: true },
+        { from: 'bg5', to: 'oncall@vps-1', bg: true },
+        { from: 'bg6', to: 'pm@vps-1', bg: true },
+      ];
+
+      // Build node map for edge lookups
+      const nodeMap = {};
+      nodes.forEach(n => { nodeMap[n.id] = n; });
+
+      // Filter edges to only include ones with valid nodes
+      const edges = allEdges.filter(e => nodeMap[e.from] && nodeMap[e.to]);
+
+      // Initialize drift seeds
+      nodes.forEach(n => {
+        n.driftSeedX = Math.random() * Math.PI * 2;
+        n.driftSeedY = Math.random() * Math.PI * 2;
+        n.pulseTime = -1;
+      });
+
+      // Assign glow phase to edges
+      edges.forEach((e, i) => { e.glowPhase = (i / edges.length) * Math.PI * 2; });
+
+      // Particle colors
+      const PARTICLE_COLORS = {
+        send:    '#A78BFA',
+        deliver: '#22d3ee',
+        ack:     '#4ade80',
+        urgent:  '#fbbf24',
+      };
+      const PARTICLE_TYPES = ['send', 'send', 'send', 'deliver', 'ack', 'urgent'];
+
+      // Particle system
+      let particles = [];
+      const MAX_PARTICLES = isMobile ? 10 : 20;
+      const SPAWN_MIN = isMobile ? 2000 : 800;
+      const SPAWN_MAX = isMobile ? 3000 : 1500;
+      let lastSpawn = 0;
+      let nextSpawnAt = SPAWN_MIN + Math.random() * (SPAWN_MAX - SPAWN_MIN);
+
+      // Canvas sizing
+      let W, H, dpr;
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = canvas.clientWidth;
+        H = canvas.clientHeight;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Compute base positions
+        nodes.forEach(n => {
+          n.baseX = n.x * W;
+          n.baseY = n.y * H;
+        });
+      }
+
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(resize, 150);
+      });
+      resize();
+
+      // Node position with drift
+      function getNodePos(node, t) {
+        if (prefersReducedMotion) return { x: node.baseX, y: node.baseY };
+        const dx = Math.sin(t / 10000 + node.driftSeedX) * 3;
+        const dy = Math.cos(t / 10000 + node.driftSeedY) * 3;
+        return { x: node.baseX + dx, y: node.baseY + dy };
+      }
+
+      // Bezier control point for edge curvature
+      function getEdgeCurve(from, to) {
+        const mx = (from.x + to.x) / 2;
+        const my = (from.y + to.y) / 2;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const offset = Math.min(40, len * 0.2);
+        // Perpendicular offset
+        return { x: mx + (-dy / len) * offset, y: my + (dx / len) * offset };
+      }
+
+      // Interpolate along quadratic bezier
+      function bezierPoint(p0, cp, p1, t) {
+        const mt = 1 - t;
+        return {
+          x: mt * mt * p0.x + 2 * mt * t * cp.x + t * t * p1.x,
+          y: mt * mt * p0.y + 2 * mt * t * cp.y + t * t * p1.y,
+        };
+      }
+
+      function triggerPulse(nodeId) {
+        const n = nodeMap[nodeId];
+        if (n) n.pulseTime = performance.now();
+      }
+
+      // Draw edge
+      function drawEdge(edge, timestamp) {
+        const fn = nodeMap[edge.from];
+        const tn = nodeMap[edge.to];
+        const from = getNodePos(fn, timestamp);
+        const to = getNodePos(tn, timestamp);
+        const cp = getEdgeCurve(from, to);
+
+        const glowBreath = 0.12 + 0.05 * Math.sin(timestamp / 3000 + edge.glowPhase);
+        const alpha = edge.bg ? glowBreath * 0.4 : glowBreath;
+
+        // Check if any particle is on this edge
+        let isActive = false;
+        for (const p of particles) {
+          if (p.fromId === edge.from && p.toId === edge.to) { isActive = true; break; }
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.quadraticCurveTo(cp.x, cp.y, to.x, to.y);
+        ctx.strokeStyle = isActive
+          ? 'rgba(139, 92, 246, 0.45)'
+          : `rgba(139, 92, 246, ${alpha})`;
+        ctx.lineWidth = isActive ? 1.5 : 1;
+        ctx.stroke();
+      }
+
+      // Draw node
+      function drawNode(node, timestamp) {
+        const pos = getNodePos(node, timestamp);
+        const type = NODE_TYPES[node.type];
+        const r = node.bg ? 8 : 16;
+
+        // Pulse ring
+        if (node.pulseTime > 0) {
+          const elapsed = timestamp - node.pulseTime;
+          const pulseDuration = 1500;
+          if (elapsed < pulseDuration) {
+            const progress = elapsed / pulseDuration;
+            const pr = r + progress * 20;
+            const opacity = 0.6 * (1 - progress);
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, pr, 0, Math.PI * 2);
+            ctx.strokeStyle = type.color.replace(')', `, ${opacity})`).replace('#', '');
+            // Convert hex to rgba for pulse
+            const c = hexToRgba(type.color, opacity);
+            ctx.strokeStyle = c;
+            ctx.lineWidth = 2 * (1 - progress);
+            ctx.stroke();
+          } else {
+            node.pulseTime = -1;
+          }
+        }
+
+        // Glow
+        const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, r * 2);
+        const gc = hexToRgba(type.color, node.bg ? 0.08 : 0.15);
+        grad.addColorStop(0, gc);
+        grad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r * 2, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Circle
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+        const cg = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, r);
+        cg.addColorStop(0, hexToRgba(type.color, node.bg ? 0.3 : 0.6));
+        cg.addColorStop(1, 'transparent');
+        ctx.fillStyle = cg;
+        ctx.fill();
+        ctx.strokeStyle = hexToRgba(type.color, node.bg ? 0.3 : 0.6);
+        ctx.lineWidth = node.bg ? 1 : 2;
+        ctx.stroke();
+
+        // Icon letter
+        if (!node.bg) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${r * 0.8}px ${getComputedStyle(document.body).fontFamily}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(type.icon, pos.x, pos.y);
+        }
+
+        // Label
+        if (node.label && !node.bg) {
+          ctx.fillStyle = '#a1a1aa';
+          ctx.font = `11px ${getComputedStyle(document.body).fontFamily}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillText(node.label, pos.x, pos.y + r + 6);
+        }
+      }
+
+      // Draw particle
+      function drawParticle(p, timestamp) {
+        const fn = nodeMap[p.fromId];
+        const tn = nodeMap[p.toId];
+        const from = getNodePos(fn, timestamp);
+        const to = getNodePos(tn, timestamp);
+        const cp = getEdgeCurve(from, to);
+        const pos = bezierPoint(from, cp, to, p.t);
+        const color = PARTICLE_COLORS[p.type];
+
+        // Glow
+        const grd = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 12);
+        grd.addColorStop(0, hexToRgba(color, 0.4));
+        grd.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+
+        // Core
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Trail (skip on mobile)
+        if (!isMobile) {
+          for (let i = 0; i < p.trail.length; i++) {
+            const tp = bezierPoint(from, cp, to, p.trail[i]);
+            const size = 3 - i;
+            const opacity = 0.3 - i * 0.1;
+            ctx.beginPath();
+            ctx.arc(tp.x, tp.y, Math.max(1, size), 0, Math.PI * 2);
+            ctx.fillStyle = hexToRgba(color, opacity);
+            ctx.fill();
+          }
+        }
+      }
+
+      function hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+      }
+
+      // Animation state
+      let lastFrame = 0;
+      let isPageVisible = true;
+      let isCanvasInView = true;
+      let animationStarted = false;
+
+      document.addEventListener('visibilitychange', () => {
+        isPageVisible = !document.hidden;
+        if (isPageVisible && animationStarted) {
+          lastFrame = performance.now();
+          requestAnimationFrame(render);
+        }
+      });
+
+      // Observe canvas visibility
+      const canvasObserver = new IntersectionObserver((entries) => {
+        entries.forEach(e => { isCanvasInView = e.isIntersecting; });
+      }, { threshold: 0.05 });
+      canvasObserver.observe(canvas);
+
+      function render(timestamp) {
+        if (!isPageVisible) return;
+        if (!animationStarted) {
+          animationStarted = true;
+          lastFrame = timestamp;
+          canvas.classList.add('loaded');
+        }
+
+        const dt = timestamp - lastFrame;
+        lastFrame = timestamp;
+
+        // Frame budget guard
+        if (dt > 200) {
+          requestAnimationFrame(render);
+          return;
+        }
+
+        ctx.clearRect(0, 0, W, H);
+
+        if (prefersReducedMotion) {
+          // Draw static frame
+          edges.forEach(e => drawEdge(e, 0));
+          nodes.forEach(n => drawNode(n, 0));
+          return; // Don't request another frame
+        }
+
+        if (!isCanvasInView) {
+          requestAnimationFrame(render);
+          return;
+        }
+
+        // Draw edges
+        edges.forEach(e => drawEdge(e, timestamp));
+
+        // Spawn particles (delayed 2s from start)
+        if (timestamp > 2000) {
+          if (timestamp - lastSpawn > nextSpawnAt && particles.length < MAX_PARTICLES) {
+            const edge = edges.filter(e => !e.bg)[Math.floor(Math.random() * edges.filter(e => !e.bg).length)];
+            if (edge) {
+              const type = PARTICLE_TYPES[Math.floor(Math.random() * PARTICLE_TYPES.length)];
+              particles.push({
+                fromId: edge.from,
+                toId: edge.to,
+                t: 0,
+                speed: 1 / 2000,
+                type: type,
+                alive: true,
+                trail: [],
+              });
+              lastSpawn = timestamp;
+              nextSpawnAt = SPAWN_MIN + Math.random() * (SPAWN_MAX - SPAWN_MIN);
+            }
+          }
+        }
+
+        // Update and draw particles
+        for (const p of particles) {
+          p.trail.unshift(Math.max(0, p.t - 0.05));
+          if (p.trail.length > 3) p.trail.length = 3;
+          p.t += p.speed * dt;
+          if (p.t >= 1) {
+            p.alive = false;
+            triggerPulse(p.toId);
+          }
+          if (p.alive) drawParticle(p, timestamp);
+        }
+        particles = particles.filter(p => p.alive);
+
+        // Draw nodes (on top of edges and particles)
+        nodes.forEach(n => drawNode(n, timestamp));
+
+        requestAnimationFrame(render);
+      }
+
+      // Start
+      requestAnimationFrame(render);
+
+      // Hero entrance animation sequence
+      setTimeout(() => {
+        document.querySelector('.hero__tagline-1').classList.add('visible');
+      }, 600);
+      setTimeout(() => {
+        document.querySelector('.hero__tagline-2').classList.add('visible');
+      }, 900);
+      setTimeout(() => {
+        document.querySelector('.hero__subtitle').classList.add('visible');
+      }, 1200);
+      setTimeout(() => {
+        document.querySelector('.hero__ctas').classList.add('visible');
+      }, 1500);
+
+    })();
+
+    /* ===================================================================
+       Scroll Animations — IntersectionObserver
+       =================================================================== */
+    (function() {
+      'use strict';
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            // Stagger children with data-delay
+            const children = entry.target.querySelectorAll('[data-delay]');
+            children.forEach(child => {
+              const delay = parseInt(child.dataset.delay, 10);
+              setTimeout(() => child.classList.add('visible'), delay);
+            });
+          }
+        });
+      }, {
+        threshold: 0.15,
+        rootMargin: '0px 0px -50px 0px',
+      });
+
+      document.querySelectorAll('.section-animate').forEach(s => observer.observe(s));
+      // Also observe the CTA section
+      const ctaSection = document.getElementById('cta-section');
+      if (ctaSection) observer.observe(ctaSection);
+    })();
+
+    /* ===================================================================
+       Architecture Diagram — Interactive
+       =================================================================== */
+    (function() {
+      'use strict';
+
+      const layers = document.querySelectorAll('.arch-layer');
+      const details = document.querySelectorAll('.arch-detail');
+      let activeLayer = null;
+
+      function activateLayer(layerName) {
+        // Toggle
+        if (activeLayer === layerName) {
+          deactivateAll();
+          return;
+        }
+        activeLayer = layerName;
+        layers.forEach(l => {
+          l.classList.toggle('active', l.dataset.layer === layerName);
+          l.setAttribute('aria-expanded', l.dataset.layer === layerName ? 'true' : 'false');
+        });
+        details.forEach(d => {
+          d.classList.toggle('active', d.id === 'detail-' + layerName);
+        });
+      }
+
+      function deactivateAll() {
+        activeLayer = null;
+        layers.forEach(l => {
+          l.classList.remove('active');
+          l.setAttribute('aria-expanded', 'false');
+        });
+        details.forEach(d => d.classList.remove('active'));
+      }
+
+      layers.forEach(l => {
+        l.addEventListener('click', () => activateLayer(l.dataset.layer));
+        l.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateLayer(l.dataset.layer);
+          }
+          if (e.key === 'Escape') {
+            deactivateAll();
+          }
+          // Arrow key navigation
+          const layerArr = Array.from(layers);
+          const idx = layerArr.indexOf(l);
+          if (e.key === 'ArrowRight' && idx < layerArr.length - 1) {
+            e.preventDefault();
+            layerArr[idx + 1].focus();
+          }
+          if (e.key === 'ArrowLeft' && idx > 0) {
+            e.preventDefault();
+            layerArr[idx - 1].focus();
+          }
+        });
+      });
+    })();
+
+    /* ===================================================================
+       Timeline — Step Navigation
+       =================================================================== */
+    (function() {
+      'use strict';
+
+      const timelineNodes = document.querySelectorAll('.timeline__node');
+      const stepLabels = document.querySelectorAll('.timeline__step-label');
+      const stepCards = document.querySelectorAll('.step-card');
+      const progress = document.querySelector('.timeline__progress');
+      let currentStep = 0;
+
+      function setStep(idx) {
+        currentStep = idx;
+        timelineNodes.forEach((n, i) => {
+          n.classList.toggle('active', i === idx);
+          n.classList.toggle('complete', i < idx);
+          n.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+        });
+        stepLabels.forEach((l, i) => {
+          l.classList.toggle('active', i === idx);
+        });
+        stepCards.forEach((c, i) => {
+          c.classList.toggle('active', i === idx);
+        });
+        // Progress bar
+        const pct = idx / (timelineNodes.length - 1) * 100;
+        progress.style.width = pct + '%';
+      }
+
+      timelineNodes.forEach((n, i) => {
+        n.addEventListener('click', () => setStep(i));
+        n.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setStep(i);
+          }
+          if (e.key === 'ArrowRight' && i < timelineNodes.length - 1) {
+            e.preventDefault();
+            timelineNodes[i + 1].focus();
+            setStep(i + 1);
+          }
+          if (e.key === 'ArrowLeft' && i > 0) {
+            e.preventDefault();
+            timelineNodes[i - 1].focus();
+            setStep(i - 1);
+          }
+        });
+      });
+    })();
+
+    /* ===================================================================
+       Stats Counter Animation
+       =================================================================== */
+    (function() {
+      'use strict';
+
+      const counters = document.querySelectorAll('.stat__number[data-count]');
+      let counted = false;
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && !counted) {
+            counted = true;
+            counters.forEach((el, i) => {
+              const target = parseInt(el.dataset.count, 10);
+              const suffix = el.dataset.suffix || '';
+              if (target === 0) {
+                el.textContent = '0' + suffix;
+                return;
+              }
+              setTimeout(() => {
+                const duration = 800;
+                const start = performance.now();
+                function tick(now) {
+                  const elapsed = now - start;
+                  const progress = Math.min(elapsed / duration, 1);
+                  // Ease out
+                  const eased = 1 - Math.pow(1 - progress, 3);
+                  el.textContent = Math.floor(target * eased).toLocaleString() + suffix;
+                  if (progress < 1) requestAnimationFrame(tick);
+                  else el.textContent = target.toLocaleString() + suffix;
+                }
+                requestAnimationFrame(tick);
+              }, i * 200);
+            });
+          }
+        });
+      }, { threshold: 0.3 });
+
+      const statsBar = document.querySelector('.stats-bar');
+      if (statsBar) observer.observe(statsBar);
+    })();
+
+    /* ===================================================================
+       Back to Top Button
+       =================================================================== */
+    (function() {
+      'use strict';
+
+      const btn = document.querySelector('.back-to-top');
+      const hero = document.getElementById('hero');
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          btn.classList.toggle('visible', !entry.isIntersecting);
+        });
+      }, { threshold: 0.1 });
+
+      observer.observe(hero);
+    })();
+
+    /* ===================================================================
+       Quick Start Copy Button
+       =================================================================== */
+    function copyQuickstart() {
+      const text = `git clone https://github.com/claudes-world/inbox.git
+cd inbox && ./bin/inbox init
+export INBOX_ADDRESS=you@localhost
+inbox send --to agent@localhost --subject "Hello"`;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.quickstart__copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

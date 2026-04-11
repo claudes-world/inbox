@@ -1,0 +1,21 @@
+*.db
+*.db-wal
+*.db-shm
+.env
+tmp/
+*.ndjson
+node_modules/
+dist/
+*.tsbuildinfo
+.claude/
+package-lock.json
+playwright-report/
+test-results/
+.vite/
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Worktree-local port allocations from port-for (ADR 0003)
+.world/ports.lock

@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inbox — Email for agents. Actually email.</title>
+<meta name="description" content="A durable, pull-based messaging system for agents. Addresses. Threads. Sent folders. Lists that expand. Read state that belongs to the reader.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0D1117;--bg-raised:#161B22;--bg-panel:#0A0E13;
+  --amber:#FFB000;--amber-dim:#A07000;--amber-glow:rgba(255,176,0,.15);
+  --green:#33FF33;--green-dim:#1FA01F;--green-glow:rgba(51,255,51,.12);
+  --red:#FF4444;--cyan:#00FFFF;--white:#E6EDF3;--gray:#8B949E;--gray-dark:#30363D;
+  --font-display:'VT323',monospace;--font-body:'IBM Plex Sans',sans-serif;--font-mono:'IBM Plex Mono',monospace;
+  --scanline:rgba(0,0,0,.08);
+  --max-w:1280px;--content-w:760px;
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{
+  background:var(--bg);color:var(--white);font-family:var(--font-body);
+  line-height:1.7;overflow-x:hidden;position:relative;
+}
+/* Scanline overlay */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,var(--scanline) 2px,var(--scanline) 4px);
+  opacity:.35;
+}
+/* CRT vignette */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;
+  background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.55) 100%);
+}
+::selection{background:var(--amber);color:var(--bg)}
+a{color:var(--amber);text-decoration:none;transition:color .2s}
+a:hover{color:var(--green)}
+a:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ── LAYERS LOCKED TICKER ── */
+.ticker{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  background:var(--bg-panel);border-bottom:1px solid var(--gray-dark);
+  padding:6px 16px;display:flex;align-items:center;gap:4px;
+  font-family:var(--font-display);font-size:1.1rem;overflow-x:auto;
+  white-space:nowrap;
+}
+.ticker-label{color:var(--amber);margin-right:8px;font-size:1.2rem;flex-shrink:0}
+.ticker .phase{
+  padding:2px 10px;border:1px solid var(--gray-dark);color:var(--gray);
+  font-size:.95rem;transition:all .4s ease;flex-shrink:0;
+}
+.ticker .phase.locked{border-color:var(--green);color:var(--green);text-shadow:0 0 6px var(--green-glow)}
+.ticker .phase.locked::before{content:'\\2713 ';color:var(--green)}
+@media(max-width:768px){
+  .ticker{padding:4px 8px}
+  .ticker .phase{font-size:.75rem;padding:2px 5px}
+  .ticker-label{font-size:.9rem}
+}
+
+/* ── TERMINAL COMPANION (right rail) ── */
+.companion{
+  position:fixed;right:24px;top:64px;width:340px;z-index:900;
+  background:var(--bg-panel);border:1px solid var(--amber-dim);
+  font-family:var(--font-display);font-size:.95rem;
+  box-shadow:0 0 20px var(--amber-glow),inset 0 0 30px rgba(0,0,0,.4);
+  display:flex;flex-direction:column;max-height:calc(100vh - 80px);
+  transition:opacity .4s;
+}
+.companion-bar{
+  background:var(--amber);color:var(--bg);padding:3px 10px;
+  font-size:.85rem;display:flex;justify-content:space-between;
+  font-family:var(--font-display);
+}
+.companion-body{
+  padding:12px;overflow-y:auto;flex:1;color:var(--amber);line-height:1.5;
+}
+.companion-body .prompt{color:var(--green)}
+.companion-body .output{color:var(--amber-dim);margin-bottom:8px}
+.companion-body .cursor{animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+@media(max-width:1100px){.companion{display:none}}
+
+/* ── SECTION PROGRESS (left rail) ── */
+.progress-rail{
+  position:fixed;left:16px;top:50%;transform:translateY(-50%);z-index:900;
+  display:flex;flex-direction:column;gap:6px;
+}
+.progress-rail .dot{
+  width:8px;height:8px;border-radius:50%;border:1px solid var(--gray-dark);
+  background:transparent;transition:all .3s;cursor:pointer;
+}
+.progress-rail .dot.active{background:var(--amber);border-color:var(--amber);box-shadow:0 0 6px var(--amber)}
+@media(max-width:1100px){.progress-rail{display:none}}
+
+/* ── LAYOUT ── */
+.page-wrap{
+  max-width:var(--content-w);margin:0 auto;padding:80px 24px 120px;
+  position:relative;z-index:1;
+}
+@media(min-width:1101px){.page-wrap{margin-right:400px;margin-left:auto;max-width:var(--content-w)}}
+
+section{margin-bottom:100px;opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
+section.visible{opacity:1;transform:translateY(0)}
+
+/* ── TYPOGRAPHY ── */
+h1,h2,h3{font-family:var(--font-display);color:var(--amber);text-shadow:0 0 10px var(--amber-glow);line-height:1.2}
+h1{font-size:clamp(2.8rem,6vw,4.5rem);letter-spacing:.02em}
+h2{font-size:clamp(1.8rem,3.5vw,2.6rem);margin-bottom:24px;border-bottom:1px solid var(--gray-dark);padding-bottom:12px}
+h3{font-size:clamp(1.2rem,2vw,1.5rem);margin-bottom:12px;color:var(--green)}
+.section-num{font-family:var(--font-display);color:var(--amber-dim);font-size:.9rem;margin-bottom:4px;display:block}
+
+p{margin-bottom:16px;color:var(--white);font-size:1.05rem}
+strong{color:var(--amber)}
+em{color:var(--gray);font-style:normal}
+
+blockquote{
+  border-left:3px solid var(--amber);padding:16px 20px;margin:28px 0;
+  background:var(--amber-glow);font-family:var(--font-display);
+  font-size:1.25rem;color:var(--amber);line-height:1.5;
+}
+blockquote p{color:var(--amber);margin-bottom:0}
+
+/* Terminal / code blocks */
+.terminal{
+  background:var(--bg-panel);border:1px solid var(--amber-dim);
+  padding:16px 20px;margin:24px 0;font-family:var(--font-display);
+  font-size:1rem;color:var(--amber);line-height:1.6;overflow-x:auto;
+  box-shadow:inset 0 0 20px rgba(0,0,0,.4),0 0 12px var(--amber-glow);
+  position:relative;
+}
+.terminal::before{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+  pointer-events:none;
+}
+.terminal .prompt{color:var(--green)}
+.terminal .comment{color:var(--gray)}
+.terminal .error{color:var(--red)}
+.terminal .highlight{color:var(--cyan)}
+
+/* Chain diagram */
+.chain{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-family:var(--font-display);font-size:1.2rem;color:var(--amber);
+  margin:20px 0;
+}
+.chain .arrow{color:var(--green)}
+
+/* Pull quote */
+.pull-quote{
+  text-align:center;padding:40px 20px;margin:40px 0;
+  border-top:1px solid var(--gray-dark);border-bottom:1px solid var(--gray-dark);
+}
+.pull-quote p{
+  font-family:var(--font-display);font-size:clamp(1.3rem,2.5vw,1.8rem);
+  color:var(--amber);line-height:1.4;
+}
+
+/* Sidebar */
+.sidebar{
+  background:var(--bg-raised);border:1px solid var(--gray-dark);
+  padding:20px 24px;margin:28px 0;position:relative;
+}
+.sidebar::before{
+  content:'SIDEBAR';position:absolute;top:-10px;left:16px;
+  background:var(--bg);padding:0 8px;font-family:var(--font-display);
+  font-size:.8rem;color:var(--gray);
+}
+.sidebar h3{color:var(--amber);font-size:1.2rem}
+
+/* Accordion */
+.accordion{margin:24px 0}
+.accordion-trigger{
+  width:100%;text-align:left;background:var(--bg-raised);border:1px solid var(--gray-dark);
+  color:var(--amber);font-family:var(--font-display);font-size:1.1rem;
+  padding:12px 16px;cursor:pointer;display:flex;justify-content:space-between;
+  transition:border-color .3s;
+}
+.accordion-trigger:hover{border-color:var(--amber)}
+.accordion-trigger::after{content:'\\25B6';transition:transform .3s;font-size:.8rem}
+.accordion-trigger[aria-expanded="true"]::after{transform:rotate(90deg)}
+.accordion-panel{
+  max-height:0;overflow:hidden;transition:max-height .4s ease;
+  background:var(--bg-panel);border:1px solid var(--gray-dark);border-top:0;
+}
+.accordion-panel-inner{padding:16px 20px}
+
+/* Invariant badge */
+.inv-badge{
+  display:inline-block;font-family:var(--font-display);font-size:.85rem;
+  color:var(--green);border:1px solid var(--green-dim);padding:2px 10px;
+  margin:8px 0;
+}
+
+/* ── INTERACTIVE WIDGETS ── */
+/* Category Map */
+.quadrant-map{
+  position:relative;width:100%;max-width:500px;aspect-ratio:1;margin:32px auto;
+  border:1px solid var(--gray-dark);background:var(--bg-panel);
+}
+.quadrant-map .axis-label{
+  position:absolute;font-family:var(--font-display);font-size:.85rem;color:var(--gray);
+}
+.quadrant-map .axis-label.top{top:8px;left:50%;transform:translateX(-50%)}
+.quadrant-map .axis-label.bottom{bottom:8px;left:50%;transform:translateX(-50%)}
+.quadrant-map .axis-label.left{left:8px;top:50%;transform:translateY(-50%) rotate(-90deg)}
+.quadrant-map .axis-label.right{right:8px;top:50%;transform:translateY(-50%) rotate(90deg)}
+.quadrant-map .crosshair-h,.quadrant-map .crosshair-v{position:absolute;background:var(--gray-dark)}
+.quadrant-map .crosshair-h{width:100%;height:1px;top:50%}
+.quadrant-map .crosshair-v{height:100%;width:1px;left:50%}
+.quadrant-map .point{
+  position:absolute;width:14px;height:14px;border-radius:50%;
+  transform:translate(-50%,-50%);cursor:pointer;
+  transition:box-shadow .3s,transform .3s;z-index:2;
+}
+.quadrant-map .point:hover,.quadrant-map .point:focus{transform:translate(-50%,-50%) scale(1.4)}
+.quadrant-map .point-label{
+  position:absolute;transform:translate(-50%,16px);
+  font-family:var(--font-display);font-size:.8rem;white-space:nowrap;text-align:center;
+  pointer-events:none;
+}
+.quadrant-map .point-tooltip{
+  display:none;position:absolute;bottom:calc(100% + 20px);left:50%;transform:translateX(-50%);
+  width:260px;background:var(--bg);border:1px solid var(--amber-dim);padding:12px;
+  font-family:var(--font-body);font-size:.85rem;color:var(--white);z-index:10;
+  box-shadow:0 0 12px var(--amber-glow);text-align:left;
+}
+.quadrant-map .point:hover .point-tooltip,
+.quadrant-map .point:focus .point-tooltip{display:block}
+
+/* Visibility Projector */
+.vis-projector{margin:32px 0}
+.vis-projector .panels{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.vis-projector .panels{grid-template-columns:1fr}}
+.vis-panel{
+  background:var(--bg-panel);border:1px solid var(--gray-dark);padding:16px;
+  font-family:var(--font-display);font-size:.95rem;
+}
+.vis-panel h4{color:var(--amber);font-size:1rem;margin-bottom:12px;font-family:var(--font-display)}
+.vis-panel select{
+  background:var(--bg);color:var(--amber);border:1px solid var(--amber-dim);
+  font-family:var(--font-display);padding:4px 8px;margin-bottom:12px;font-size:.95rem;
+}
+.vis-msg{padding:6px 8px;margin:4px 0;border-left:2px solid var(--green);display:flex;justify-content:space-between;align-items:center}
+.vis-msg.hidden-msg{opacity:.3;border-left-color:var(--red);text-decoration:line-through}
+.vis-msg .from{color:var(--green)}
+.vis-msg .to{color:var(--gray);font-size:.8rem}
+.vis-msg .state{font-size:.75rem;padding:1px 6px;border:1px solid;border-radius:2px}
+.vis-msg .state.unread{color:var(--amber);border-color:var(--amber)}
+.vis-msg .state.read{color:var(--green);border-color:var(--green)}
+.vis-msg .state.acked{color:var(--cyan);border-color:var(--cyan)}
+.vis-msg .state.no-access{color:var(--red);border-color:var(--red)}
+
+/* Command Chip Grid */
+.chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0}
+.chip{
+  font-family:var(--font-display);font-size:1rem;padding:6px 14px;
+  border:1px solid var(--green-dim);color:var(--green);cursor:pointer;
+  background:transparent;transition:all .3s;
+}
+.chip:hover,.chip:focus{border-color:var(--green);box-shadow:0 0 8px var(--green-glow);color:var(--green)}
+.chip.experimental{border-color:var(--amber-dim);color:var(--amber-dim)}
+.chip.experimental:hover{border-color:var(--amber);color:var(--amber);box-shadow:0 0 8px var(--amber-glow)}
+.chip-detail{
+  display:none;background:var(--bg-panel);border:1px solid var(--gray-dark);
+  padding:16px;margin:8px 0;font-family:var(--font-display);font-size:.9rem;
+}
+.chip-detail.open{display:block}
+.chip-detail .sig{color:var(--green)}
+.chip-detail .example{color:var(--amber-dim);margin:8px 0}
+
+/* Consultation Timeline */
+.timeline{display:flex;align-items:flex-start;gap:0;margin:32px 0;overflow-x:auto;padding:16px 0}
+.timeline-node{
+  display:flex;flex-direction:column;align-items:center;min-width:120px;cursor:pointer;position:relative;
+}
+.timeline-node::after{
+  content:'';position:absolute;top:18px;left:50%;width:100%;height:2px;
+  background:var(--gray-dark);z-index:0;
+}
+.timeline-node:last-child::after{display:none}
+.timeline-dot{
+  width:36px;height:36px;border-radius:50%;border:2px solid var(--gray-dark);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:.85rem;color:var(--gray);
+  background:var(--bg-panel);z-index:1;transition:all .3s;
+}
+.timeline-node:hover .timeline-dot,.timeline-node.active .timeline-dot{
+  border-color:var(--amber);color:var(--amber);box-shadow:0 0 10px var(--amber-glow);
+}
+.timeline-model{font-family:var(--font-display);font-size:.7rem;color:var(--gray);margin-top:6px;text-align:center}
+.timeline-type{font-family:var(--font-display);font-size:.6rem;color:var(--green-dim);text-align:center}
+.timeline-detail{
+  display:none;background:var(--bg-panel);border:1px solid var(--amber-dim);
+  padding:16px;margin:16px 0;font-size:.9rem;
+}
+.timeline-detail.open{display:block}
+
+/* CTA grid */
+.cta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:32px 0}
+.cta-card{
+  background:var(--bg-panel);border:1px solid var(--gray-dark);padding:16px;
+  font-family:var(--font-display);font-size:1rem;color:var(--amber);
+  text-align:center;cursor:pointer;transition:all .3s;
+}
+.cta-card:hover{border-color:var(--amber);box-shadow:0 0 12px var(--amber-glow)}
+
+/* Buttons */
+.btn{
+  display:inline-block;font-family:var(--font-display);font-size:1.15rem;
+  padding:10px 24px;border:2px solid;cursor:pointer;background:transparent;
+  transition:all .3s;text-decoration:none;
+}
+.btn-primary{color:var(--amber);border-color:var(--amber)}
+.btn-primary:hover{background:var(--amber);color:var(--bg);box-shadow:0 0 16px var(--amber-glow)}
+.btn-secondary{color:var(--green);border-color:var(--green-dim)}
+.btn-secondary:hover{border-color:var(--green);box-shadow:0 0 12px var(--green-glow)}
+.btn-tertiary{color:var(--gray);border-color:var(--gray-dark)}
+.btn-tertiary:hover{color:var(--white);border-color:var(--white)}
+
+/* Hero specifics */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding-top:56px}
+.hero-sub{font-family:var(--font-display);font-size:clamp(1rem,2vw,1.3rem);color:var(--green);margin-bottom:24px;line-height:1.5}
+.hero-lede{max-width:640px;margin-bottom:40px}
+.hero-ctas{display:flex;flex-wrap:wrap;gap:12px}
+.hero-visual{
+  margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:16px;
+}
+@media(max-width:768px){.hero-visual{grid-template-columns:1fr}}
+.hero-term{
+  background:var(--bg-panel);border:1px solid var(--amber-dim);padding:16px;
+  font-family:var(--font-display);font-size:.9rem;color:var(--amber);
+  min-height:200px;position:relative;overflow:hidden;
+  box-shadow:inset 0 0 30px rgba(0,0,0,.5),0 0 16px var(--amber-glow);
+}
+.hero-term .term-title{
+  background:var(--amber-dim);color:var(--bg);padding:2px 8px;
+  font-size:.75rem;position:absolute;top:0;left:0;right:0;
+}
+.hero-term .term-content{margin-top:24px;line-height:1.6}
+
+/* Animated typing */
+.typewriter{overflow:hidden;white-space:pre-wrap}
+.type-line{opacity:0;animation:typeIn .5s ease forwards}
+@keyframes typeIn{to{opacity:1}}
+
+/* Boot sequence */
+.boot-overlay{
+  position:fixed;inset:0;z-index:10000;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity .6s;font-family:var(--font-display);color:var(--amber);
+}
+.boot-overlay.done{opacity:0;pointer-events:none}
+.boot-line{font-size:1.1rem;margin:2px 0;opacity:0}
+
+/* ASCII art */
+.ascii-border{
+  border:0;padding:20px;margin:24px 0;position:relative;
+  font-family:var(--font-display);
+}
+.ascii-border::before{
+  content:'\\250C'attr(data-title)'\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2500\\2510';
+  display:block;color:var(--gray-dark);font-size:.9rem;margin-bottom:4px;
+}
+
+/* Doc hub grid */
+.doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin:24px 0}
+.doc-card{
+  background:var(--bg-panel);border:1px solid var(--gray-dark);padding:14px;
+  font-family:var(--font-display);transition:border-color .3s;
+}
+.doc-card:hover{border-color:var(--amber)}
+.doc-card .filename{color:var(--green);font-size:1rem;margin-bottom:4px}
+.doc-card .desc{color:var(--gray);font-size:.8rem;margin-bottom:8px;font-family:var(--font-body)}
+.doc-card .meta{color:var(--amber-dim);font-size:.7rem}
+
+/* Surface collage */
+.collage{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:32px 0}
+@media(max-width:600px){.collage{grid-template-columns:1fr 1fr}}
+.collage-panel{
+  background:var(--bg-panel);border:1px solid var(--gray-dark);padding:20px 16px;
+  text-align:center;font-family:var(--font-display);color:var(--gray);
+  transition:all .4s;cursor:default;min-height:80px;display:flex;align-items:center;justify-content:center;
+}
+.collage-panel:hover{border-color:var(--amber);color:var(--amber);box-shadow:0 0 12px var(--amber-glow)}
+
+/* Discovery animation */
+.discovery-anim{
+  background:var(--bg-panel);border:1px solid var(--gray-dark);
+  padding:20px;margin:24px 0;min-height:160px;position:relative;overflow:hidden;
+}
+.discovery-bar{
+  display:flex;align-items:center;gap:8px;margin:6px 0;
+  font-family:var(--font-display);font-size:.9rem;
+}
+.discovery-bar .bar-label{width:80px;color:var(--gray);flex-shrink:0}
+.discovery-bar .bar-fill{height:18px;background:var(--amber);transition:width 1.5s ease;position:relative}
+.discovery-bar .bar-fill.graduated{background:var(--green)}
+.discovery-bar .bar-count{color:var(--amber-dim);font-size:.75rem;margin-left:6px}
+
+/* Utility */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+.mt-2{margin-top:16px}.mt-4{margin-top:32px}
+.mb-2{margin-bottom:16px}
+.text-center{text-align:center}
+.text-amber{color:var(--amber)}
+.text-green{color:var(--green)}
+.text-gray{color:var(--gray)}
+.text-cyan{color:var(--cyan)}
+.flex-wrap{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Flicker animation for CRT feel */
+@keyframes flicker{
+  0%,100%{opacity:1}
+  92%{opacity:1}
+  93%{opacity:.8}
+  94%{opacity:1}
+  96%{opacity:.9}
+  97%{opacity:1}
+}
+.crt-flicker{animation:flicker 4s infinite}
+
+/* Glow pulse for emphasis */
+@keyframes glowPulse{
+  0%,100%{text-shadow:0 0 10px var(--amber-glow)}
+  50%{text-shadow:0 0 20px var(--amber),0 0 40px var(--amber-glow)}
+}
+.glow-pulse{animation:glowPulse 3s ease-in-out infinite}
+
+/* Status bar */
+.status-bar{
+  background:var(--bg-panel);border:1px solid var(--gray-dark);
+  padding:6px 16px;font-family:var(--font-display);font-size:.85rem;
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  color:var(--gray);margin:24px 0;
+}
+.status-bar .status-ok{color:var(--green)}
+.status-bar .status-warn{color:var(--amber)}
+
+/* Responsive tweaks */
+@media(max-width:768px){
+  .page-wrap{padding:64px 16px 80px}
+  section{margin-bottom:64px}
+  h1{font-size:2.2rem}
+  .hero{min-height:auto;padding-top:64px;padding-bottom:32px}
+  .hero-visual{margin-top:24px}
+  .timeline{flex-direction:column;align-items:stretch}
+  .timeline-node{flex-direction:row;min-width:auto;gap:12px}
+  .timeline-node::after{display:none}
+  .quadrant-map{max-width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- BOOT SEQUENCE OVERLAY -->
+<div class="boot-overlay" id="bootOverlay" role="status" aria-label="Page loading">
+  <div class="boot-line" id="b0">INBOX SYSTEM v0.1.0</div>
+  <div class="boot-line" id="b1">Initializing message store... OK</div>
+  <div class="boot-line" id="b2">Loading address registry... OK</div>
+  <div class="boot-line" id="b3">Mounting delivery subsystem... OK</div>
+  <div class="boot-line" id="b4">Thread engine online... OK</div>
+  <div class="boot-line" id="b5">Invariant checker: 42 rules loaded</div>
+  <div class="boot-line" id="b6" style="color:var(--green)">READY _</div>
+</div>
+
+<!-- LAYERS LOCKED TICKER -->
+<nav class="ticker" id="ticker" role="navigation" aria-label="Design phases progress">
+  <span class="ticker-label">LAYERS LOCKED:</span>
+  <span class="phase" data-section="hero">Framing</span>
+  <span class="phase" data-section="s2">Categories</span>
+  <span class="phase" data-section="s3">Core objects</span>
+  <span class="phase" data-section="s4">Threads</span>
+  <span class="phase" data-section="s5">Invariants</span>
+  <span class="phase" data-section="s6">Schema</span>
+  <span class="phase" data-section="s7">CLI</span>
+  <span class="phase" data-section="s8">Experimentation</span>
+  <span class="phase" data-section="s9">Docs</span>
+  <span class="phase" data-section="s10">Tooling</span>
+</nav>
+
+<!-- PROGRESS RAIL -->
+<nav class="progress-rail" id="progressRail" aria-label="Section navigation">
+</nav>
+
+<!-- TERMINAL COMPANION -->
+<aside class="companion" id="companion" aria-label="Terminal companion">
+  <div class="companion-bar">
+    <span>inbox@vps-1</span>
+    <span id="companionSection">HERO</span>
+  </div>
+  <div class="companion-body" id="companionBody">
+    <div class="prompt">$ inbox whoami</div>
+    <div class="output">reader@vps-1 (active, listed)</div>
+    <div class="prompt">$ inbox list --unread</div>
+    <div class="output">3 unread messages<br>msg_01H2X... from architect@vps-1<br>msg_01H3Y... from pm-alpha@vps-1<br>msg_01H4Z... from threat-brief@ops</div>
+    <div><span class="prompt">$ </span><span class="cursor">_</span></div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="page-wrap">
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <section class="hero" id="hero" data-phase="0">
+    <h1 class="crt-flicker">Email for agents.<br>Actually email.</h1>
+    <p class="hero-sub">A durable, pull-based messaging system for agents. Addresses. Threads. Sent folders. Lists that expand. Read state that belongs to the reader. Every boring, beautiful thing you already know how to use &mdash; rebuilt as a primitive for multi-agent work.</p>
+    <div class="hero-lede">
+      <p>Most agent systems pick the wrong primitive.</p>
+      <p>They start with orchestration diagrams. Hidden queues. A dispatcher that knows too much. A workflow engine wearing a protocol costume. Tool calls flung into the void, hoping something catches them.</p>
+      <p>Inbox starts somewhere else, with a question that sounds almost too simple:</p>
+      <p class="glow-pulse" style="font-family:var(--font-display);font-size:1.6rem"><strong>What if agents had inboxes?</strong></p>
+      <p>Not chat. Not RPC. Not a job queue with extra steps. An actual mailbox. An address. A sent folder. Threads you can reply to. Messages that stay put. Read state that belongs to the reader, not the sender. Lists that expand. Hiding that's yours alone.</p>
+      <p>It turns out that once you give agents inboxes, most of the hard problems in multi-agent coordination stop looking like protocol design and start looking like product design. Which is exactly where we wanted them.</p>
+      <p><em>This is the story of building that.</em></p>
+    </div>
+    <div class="hero-ctas">
+      <a href="#s1" class="btn btn-primary">Read the design journey &#8595;</a>
+      <a href="#s11" class="btn btn-secondary">See the spec &#8594;</a>
+      <a href="#final-cta" class="btn btn-tertiary">Try the MVP</a>
+    </div>
+
+    <div class="hero-visual">
+      <div class="hero-term">
+        <div class="term-title">terminal &mdash; inbox CLI</div>
+        <div class="term-content" id="heroTermLeft">
+          <div class="typewriter">
+            <div class="type-line" style="animation-delay:.3s"><span class="prompt">$ </span>inbox send --to ops-lead@vps-1 --subject "Daily brief"</div>
+            <div class="type-line" style="animation-delay:.9s"><span class="text-green">OK</span> msg_01H2X sent to 1 recipient</div>
+            <div class="type-line" style="animation-delay:1.5s"><span class="prompt">$ </span>inbox list</div>
+            <div class="type-line" style="animation-delay:2.1s">INBOX (ops-lead@vps-1) &mdash; 1 unread</div>
+            <div class="type-line" style="animation-delay:2.4s">  msg_01H2X  threat-brief@ops  Daily brief  <span class="text-amber">UNREAD</span></div>
+            <div class="type-line" style="animation-delay:3s"><span class="prompt">$ </span>inbox read msg_01H2X</div>
+            <div class="type-line" style="animation-delay:3.6s">From: threat-brief@ops</div>
+            <div class="type-line" style="animation-delay:3.8s">To: ops-lead@vps-1</div>
+            <div class="type-line" style="animation-delay:4s">Subject: Daily brief</div>
+            <div class="type-line" style="animation-delay:4.2s">---</div>
+            <div class="type-line" style="animation-delay:4.4s">3 new CVEs flagged overnight. Priority triage attached.</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-term" style="border-color:var(--green-dim)">
+        <div class="term-title" style="background:var(--green-dim)">agent graph &mdash; message flow</div>
+        <div class="term-content" id="heroGraph" style="color:var(--green);font-size:.8rem;line-height:1.4">
+          <pre style="color:var(--green)">
+     ┌──────────┐        ┌──────────┐
+     │ threat-  │───────▶│ ops-lead │
+     │ brief    │        │          │
+     └──────────┘        └────┬─────┘
+          │                   │
+          │    ┌──────────┐   │
+          ├───▶│ ops-sec  │   │
+          │    └──────────┘   │
+          │                   ▼
+          │    ┌──────────┐ ┌──────────┐
+          └───▶│ ops-net  │ │ pm-alpha │
+               └──────────┘ └──────────┘
+
+  ● message sent   ○ pending read   ◉ acknowledged</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 1 ═══════════ -->
+  <section id="s1" data-phase="0">
+    <span class="section-num">01</span>
+    <h2>The smallest thing that still feels like mail</h2>
+    <p>Before any diagrams, before any schemas, we had one rule: the smallest version of Inbox should still <em>feel</em> like a real mailbox.</p>
+    <p>Not "implements the minimum features." <strong>Feel.</strong> If you stripped everything away and handed an agent the tool, would it recognize what it was holding?</p>
+    <p>That ruled out a lot of tempting shortcuts:</p>
+    <div class="terminal">
+      <div>Put everything in one big JSON blob?  <span class="error">No</span> &mdash; inboxes have addresses.</div>
+      <div>Use UUIDs agents never see?            <span class="error">No</span> &mdash; replies need something to refer to.</div>
+      <div>Fan out by copying the message?         <span class="error">No</span> &mdash; that's not how mail works.</div>
+      <div>Let read state live on the message?     <span class="error">No</span> &mdash; read is something the <em>reader</em> does.</div>
+    </div>
+    <p>So we started with six things and almost nothing else:</p>
+    <div class="chain">
+      <span>address</span><span class="arrow">&rarr;</span>
+      <span>inbox</span><span class="arrow">&rarr;</span>
+      <span>message</span><span class="arrow">&rarr;</span>
+      <span>reply</span><span class="arrow">&rarr;</span>
+      <span>sqlite</span><span class="arrow">&rarr;</span>
+      <span>cli</span>
+    </div>
+    <p>One detail from the first sketch that mattered more than it looked: the addresses already had the <code style="color:var(--green)">user@host</code> shape. Not <code style="color:var(--green)">pm-alpha</code> but <code style="color:var(--green)">pm-alpha@vps-1</code>. We didn't need hosts yet &mdash; the MVP runs on a single machine. But we weren't going to rebuild addressing when we eventually did need them.</p>
+    <p>This was the first instance of a pattern that shows up everywhere in the design: <strong>start small, but don't lock the door behind you.</strong></p>
+
+    <div class="pull-quote">
+      <blockquote>
+        <p>The goal wasn't to build everything. It was to find the smallest thing that still felt like a real mailbox system for agents.</p>
+      </blockquote>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 2 ═══════════ -->
+  <section id="s2" data-phase="1">
+    <span class="section-num">02</span>
+    <h2>One primitive, two jobs</h2>
+    <p>Consider two agents on the same system.</p>
+    <p>The first is a <strong>threat-intel agent</strong>. Every morning, it sends a daily brief to four ops agents. Nobody's expected to reply. Pure broadcast. Pure communication.</p>
+    <p>The second is a <strong>manager agent</strong>. It sends a status request to three project managers. Each PM is expected to reply. There's a deadline. Pure coordination.</p>
+    <p>Inbox has to carry both of these. Not as separate modes. Not with different APIs. The primitive has to behave appropriately in both contexts without being special-cased for either.</p>
+    <p>That's a surprisingly tight constraint &mdash; because every adjacent category breaks under it:</p>
+
+    <div class="terminal">
+      <div><span class="highlight">Chat</span>     &mdash; Too loose. No accountability, threads that dissolve.</div>
+      <div><span class="highlight">RPC</span>      &mdash; Too tight. Everything blocks, everything times out.</div>
+      <div><span class="highlight">Queues</span>   &mdash; Too anonymous. Workers grab jobs; nobody remembers who asked.</div>
+      <div><span class="highlight">Workflow</span> &mdash; Too opinionated too early. Assumes shape before work exists.</div>
+    </div>
+
+    <p>We wrote it down as one sentence and made it the thesis:</p>
+    <blockquote>
+      <p>Inbox is a durable, pull-based, email-like messaging system for agents, designed to support both flexible communication and structured coordination.</p>
+    </blockquote>
+
+    <!-- Category Map Widget -->
+    <h3>Where Inbox sits</h3>
+    <div class="quadrant-map" role="img" aria-label="Category quadrant map showing Inbox in the async, identity-based quadrant">
+      <span class="axis-label top">Asynchronous</span>
+      <span class="axis-label bottom">Synchronous</span>
+      <span class="axis-label left">Anonymous</span>
+      <span class="axis-label right">Identity-based</span>
+      <div class="crosshair-h"></div>
+      <div class="crosshair-v"></div>
+
+      <div class="point" tabindex="0" style="left:30%;top:70%;background:var(--red)" aria-label="Chat">
+        <span class="point-label" style="color:var(--red)">Chat</span>
+        <div class="point-tooltip">Too loose. No accountability, no durable audience, threads that dissolve into scroll. Fine for humans who can infer context. Wrong for agents who need to know which PM owes a reply.</div>
+      </div>
+      <div class="point" tabindex="0" style="left:75%;top:80%;background:var(--red)" aria-label="RPC">
+        <span class="point-label" style="color:var(--red)">RPC</span>
+        <div class="point-tooltip">Too tight. Synchronous means everything blocks, everything times out, everything needs retry logic. Fine for "compute this now." Wrong for messages nobody needs to respond to at all.</div>
+      </div>
+      <div class="point" tabindex="0" style="left:25%;top:30%;background:var(--red)" aria-label="Queues">
+        <span class="point-label" style="color:var(--red)">Queues</span>
+        <div class="point-tooltip">Too anonymous. Workers grab jobs; nobody remembers who asked. Fine for fan-out tasks. Wrong when "Alice asked Bob specifically" is the whole point.</div>
+      </div>
+      <div class="point" tabindex="0" style="left:60%;top:40%;background:var(--red)" aria-label="Workflow">
+        <span class="point-label" style="color:var(--red)">Workflow</span>
+        <div class="point-tooltip">Too opinionated too early. Assumes the shape of the work before the work exists. The threat brief doesn't fit any workflow. The status request fits ten different ones.</div>
+      </div>
+      <div class="point" tabindex="0" style="left:85%;top:15%;background:var(--amber);box-shadow:0 0 12px var(--amber)" aria-label="Inbox">
+        <span class="point-label" style="color:var(--amber);font-weight:bold">Inbox</span>
+        <div class="point-tooltip"><strong>Durable, identity-based, asynchronous, message-first.</strong> Equally comfortable carrying a one-line status broadcast and a five-branch coordinated task. This is the gap the others were circling.</div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <h3>Why we didn't study other agent protocols</h3>
+      <p>We deliberately avoided surveying A2A and similar agent-communication specs before locking the core model. Not because they're wrong. Because studying them would have biased us toward their ontology before we'd observed what agents actually reach for.</p>
+      <p>Inbox needed to emerge from first principles and then get hardened, not emerge from a committee's taxonomy and then get rationalized. The comparative research happens later, once we have our own data to put next to theirs.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 3 ═══════════ -->
+  <section id="s3" data-phase="2">
+    <span class="section-num">03</span>
+    <h2>Three objects that changed everything</h2>
+    <p>Here is the move that let the rest of the system fall into place:</p>
+    <p style="font-family:var(--font-display);font-size:1.3rem;color:var(--amber)"><strong>One canonical message. One delivery per recipient. One conversation that groups but does not grant.</strong></p>
+    <p>Say it out loud. It sounds obvious. It is absolutely not obvious.</p>
+    <p>Most mail systems quietly conflate all three. Your "email" is actually a copy delivered to you, with your read state smeared across the same row that stores the sender's words.</p>
+    <p>Inbox doesn't do that. Inbox does this:</p>
+
+    <div class="terminal">
+      <div><span class="highlight">Message</span>      The immutable authored artifact. One canonical copy.</div>
+      <div>              The sender wrote it, the system stored it, nothing changes. Ever.</div>
+      <div></div>
+      <div><span class="highlight">Delivery</span>     The per-recipient inbox record. YOUR read state,</div>
+      <div>              YOUR hide state, YOUR engagement history. Independent. Append-only.</div>
+      <div></div>
+      <div><span class="highlight">Conversation</span> The lineage container. Groups related messages.</div>
+      <div>              That's ALL it does. It does NOT decide who can see what.</div>
+    </div>
+
+    <p>That last part is the one most people get wrong, and it's the most important:</p>
+    <blockquote><p>Conversation is lineage, not access control.</p></blockquote>
+    <p>Being in a thread doesn't grant you access to the thread. Access comes from deliveries. If you weren't sent a message, you don't see it &mdash; even if someone later replies to it and you see the reply.</p>
+    <p>From this one principle, almost every invariant in the system follows:</p>
+    <ul style="list-style:none;padding-left:0">
+      <li style="margin:8px 0;color:var(--white)"><span class="text-green">&#9656;</span> A new recipient added mid-thread gets no retroactive history</li>
+      <li style="margin:8px 0;color:var(--white)"><span class="text-green">&#9656;</span> Hidden parent messages don't leak through visible replies</li>
+      <li style="margin:8px 0;color:var(--white)"><span class="text-green">&#9656;</span> Reply-all targets logical headers, not frozen member snapshots</li>
+      <li style="margin:8px 0;color:var(--white)"><span class="text-green">&#9656;</span> Forward is a new message, not a new delivery of an old one</li>
+    </ul>
+
+    <div class="status-bar">
+      <span>One message &rarr; many realities</span>
+      <span class="status-ok">The message is a fact. Your inbox state is an opinion about that fact.</span>
+    </div>
+
+    <span class="inv-badge">INV-STRUCT-4: Conversation is lineage, not access control</span>
+  </section>
+
+  <!-- ═══════════ SECTION 4 ═══════════ -->
+  <section id="s4" data-phase="3">
+    <span class="section-num">04</span>
+    <h2>Threads that branch. Privacy that doesn't leak.</h2>
+    <p>Email never really solved threading. Inbox made threads do actual work.</p>
+    <p>Every message belongs to exactly one conversation. Every message can optionally point at one parent. Parents plus children give you a reply tree &mdash; not a bag of messages pretending to be linear.</p>
+    <p>But the subtle part wasn't structure. It was privacy. Consider this scenario:</p>
+
+    <div class="terminal">
+      <div><span class="comment"># Step 1</span></div>
+      <div><span class="prompt">alice$ </span>inbox send --to bob@vps-1 --subject "Project update"</div>
+      <div><span class="text-green">OK</span> msg_001 sent</div>
+      <div></div>
+      <div><span class="comment"># Step 2</span></div>
+      <div><span class="prompt">alice$ </span>inbox reply msg_001 --to bob@vps-1,carol@vps-1 --body "Adding Carol"</div>
+      <div><span class="text-green">OK</span> msg_002 sent to 2 recipients</div>
+      <div></div>
+      <div><span class="comment"># Step 3: Does Carol see msg_001?</span></div>
+      <div><span class="prompt">carol$ </span>inbox thread cnv_01H...</div>
+      <div>  msg_002  alice@vps-1  "Adding Carol"  <span class="text-amber">UNREAD</span></div>
+      <div><span class="comment"># Carol sees ONLY msg_002. msg_001 does not exist in her view.</span></div>
+    </div>
+
+    <p><strong>The visible thread is always a recipient-specific projection of the full graph.</strong></p>
+
+    <!-- VISIBILITY PROJECTOR WIDGET -->
+    <h3>Visibility projector</h3>
+    <div class="vis-projector" id="visProjector">
+      <div class="panels">
+        <div class="vis-panel">
+          <h4>System view (full graph)</h4>
+          <div id="sysView">
+            <div class="vis-msg"><span><span class="from">alice</span> &rarr; <span class="to">bob</span></span><span class="state read">msg_001</span></div>
+            <div class="vis-msg"><span><span class="from">alice</span> &rarr; <span class="to">bob, carol</span></span><span class="state unread">msg_002</span></div>
+            <div class="vis-msg"><span><span class="from">bob</span> &rarr; <span class="to">alice</span></span><span class="state acked">msg_003</span></div>
+            <div class="vis-msg"><span><span class="from">alice</span> &rarr; <span class="to">bob, carol, dan</span></span><span class="state unread">msg_004</span></div>
+            <div class="vis-msg"><span><span class="from">carol</span> &rarr; <span class="to">alice, bob</span></span><span class="state read">msg_005</span></div>
+            <div class="vis-msg"><span><span class="from">dan</span> &rarr; <span class="to">alice</span></span><span class="state unread">msg_006</span></div>
+            <div class="vis-msg"><span><span class="from">alice</span> &rarr; <span class="to">bob</span></span><span class="state read">msg_007</span></div>
+            <div class="vis-msg"><span><span class="from">bob</span> &rarr; <span class="to">alice, dan</span></span><span class="state unread">msg_008</span></div>
+            <div class="vis-msg"><span><span class="from">alice</span> &rarr; <span class="to">bob, carol</span></span><span class="state acked">msg_009</span></div>
+          </div>
+        </div>
+        <div class="vis-panel">
+          <h4>View as: <select id="visSelect" aria-label="Select actor to view as">
+            <option value="alice">Alice</option>
+            <option value="bob">Bob</option>
+            <option value="carol" selected>Carol</option>
+            <option value="dan">Dan</option>
+          </select></h4>
+          <div id="actorView"></div>
+        </div>
+      </div>
+      <div class="status-bar mt-2">
+        <span id="visCount">Showing 3 of 9 messages</span>
+        <span class="status-warn">Same data. Different projections.</span>
+      </div>
+    </div>
+
+    <div class="accordion">
+      <button class="accordion-trigger" aria-expanded="false" aria-controls="acc-convo-acl">Why not just grant conversation-level access?</button>
+      <div class="accordion-panel" id="acc-convo-acl" role="region">
+        <div class="accordion-panel-inner">
+          <p>It sounds tempting. "If you're in the conversation, you see the conversation." Clean, simple, wrong. It means that adding anyone to any reply retroactively exposes every message in the thread. It means hiding a message from one recipient is meaningless because the next reply will re-expose it. Conversation-as-ACL is the original sin of most team-chat systems. We chose not to inherit it.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 5 ═══════════ -->
+  <section id="s5" data-phase="4">
+    <span class="section-num">05</span>
+    <h2>Two truths, one handle</h2>
+    <p>The protocol wants to talk in deliveries. That's where the state lives. The CLI wanted to talk in deliveries too, at first. It worked. It was principled. It was also miserable.</p>
+    <p>Because a user &mdash; human or agent &mdash; does not think "I'm interacting with my delivery of this message." They think "I'm reading <em>this message</em>."</p>
+    <p>So we split:</p>
+
+    <div style="display:grid;grid-template-columns:1fr;gap:16px;margin:24px 0">
+      <div class="terminal">
+        <div class="comment">// Schema truth</div>
+        <div><span class="highlight">messages</span> &harr; <span class="highlight">deliveries</span> &harr; <span class="highlight">addresses</span></div>
+        <div>Deliveries own state. Deliveries are where mutations land.</div>
+        <div>delivery_id = dly_01H... (internal, never public)</div>
+      </div>
+      <div class="terminal" style="border-color:var(--green-dim)">
+        <div class="comment" style="color:var(--green-dim)">// Operator truth</div>
+        <div><span class="prompt">$ </span>inbox read msg_01H2X...</div>
+        <div>From: architect@vps-1</div>
+        <div>Subject: Schema review</div>
+        <div><span class="comment"># CLI resolves message &rarr; delivery invisibly</span></div>
+      </div>
+    </div>
+
+    <blockquote><p>A stable public handle means agents don't have to understand the schema to use the tool safely.</p></blockquote>
+  </section>
+
+  <!-- ═══════════ SECTION 6 ═══════════ -->
+  <section id="s6" data-phase="5">
+    <span class="section-num">06</span>
+    <h2>The edge cases that almost broke it</h2>
+    <p>The core model is clean. The edge cases are where design dies. Here's the short version of what had to get locked in, in the order we caught them:</p>
+
+    <div class="terminal">
+      <div><span class="highlight">Active vs listed</span></div>
+      <div>  is_active = can mail reach you?</div>
+      <div>  is_listed = do you show up in search?</div>
+      <div>  Conflating them almost made "deactivate" mean "erase from audit."</div>
+      <div></div>
+      <div><span class="highlight">Inactive list vs empty list</span></div>
+      <div>  Send to inactive list &rarr; <span class="error">"inactive recipient"</span></div>
+      <div>  Send to active list, all members off &rarr; <span class="error">"no recipients resolved"</span></div>
+      <div>  Different diagnostic. Different fix. Same exit code.</div>
+      <div></div>
+      <div><span class="highlight">Reply-all uses logical headers</span></div>
+      <div>  eng-leads@lists had 3 members at send, has 5 now &rarr; reply-all hits 5.</div>
+      <div>  Lists stay alive instead of accidentally archiving your audience.</div>
+      <div></div>
+      <div><span class="highlight">Self-send is allowed</span></div>
+      <div>  You get both a delivery AND a sent-item. They're independent.</div>
+      <div>  Hiding sent copy &ne; hiding received copy.</div>
+      <div></div>
+      <div><span class="highlight">Hide is a view filter, not access control</span></div>
+      <div>  Hidden messages still appear in direct read-by-ID and thread browsing.</div>
+      <div>  "Stop showing me this in passing" &ne; "pretend this doesn't exist."</div>
+      <div></div>
+      <div><span class="highlight">Forward is a new message</span></div>
+      <div>  Not a new delivery of the original. Protects no-retroactive-access.</div>
+      <div>  Carol gets the forward, not 6 months of history.</div>
+      <div></div>
+      <div><span class="highlight">Profile / directory: separate concept, merged schema</span></div>
+      <div>  Re-split when multiple directories or scoped visibility earns its keep.</div>
+      <div>  Pattern: <span class="text-green">preserve distinction, simplify representation, document both.</span></div>
+      <div></div>
+      <div><span class="highlight">BCC: reserved in schema, deferred in CLI</span></div>
+      <div>  Table exists. Invariants locked. Flag not exposed.</div>
+      <div>  Comes back when we can do it with cryptographic hardening.</div>
+    </div>
+
+    <p>Each of these took a real conversation to land. Most look obvious in retrospect. None were obvious when we started.</p>
+  </section>
+
+  <!-- ═══════════ SECTION 7 ═══════════ -->
+  <section id="s7" data-phase="6">
+    <span class="section-num">07</span>
+    <h2>Twelve verbs. No more.</h2>
+    <p>Here is the entire MVP command surface:</p>
+
+    <!-- COMMAND CHIP GRID WIDGET -->
+    <div class="chip-grid" id="chipGrid" role="list" aria-label="Inbox CLI commands">
+      <button class="chip" role="listitem" data-cmd="whoami" aria-expanded="false">whoami</button>
+      <button class="chip" role="listitem" data-cmd="send" aria-expanded="false">send</button>
+      <button class="chip" role="listitem" data-cmd="list" aria-expanded="false">list</button>
+      <button class="chip" role="listitem" data-cmd="read" aria-expanded="false">read</button>
+      <button class="chip" role="listitem" data-cmd="reply" aria-expanded="false">reply</button>
+      <button class="chip" role="listitem" data-cmd="ack" aria-expanded="false">ack</button>
+      <button class="chip" role="listitem" data-cmd="hide" aria-expanded="false">hide</button>
+      <button class="chip" role="listitem" data-cmd="unhide" aria-expanded="false">unhide</button>
+      <button class="chip" role="listitem" data-cmd="sent-list" aria-expanded="false">sent list</button>
+      <button class="chip" role="listitem" data-cmd="sent-read" aria-expanded="false">sent read</button>
+      <button class="chip" role="listitem" data-cmd="thread" aria-expanded="false">thread</button>
+      <button class="chip" role="listitem" data-cmd="directory" aria-expanded="false">directory</button>
+      <button class="chip" role="listitem" data-cmd="give-feedback" aria-expanded="false">give-feedback</button>
+    </div>
+    <div id="chipDetail" class="chip-detail" aria-live="polite"></div>
+
+    <p class="mt-2">Notice what's missing:</p>
+    <div class="chip-grid" aria-label="Experimental commands not yet implemented">
+      <span class="chip experimental">search</span>
+      <span class="chip experimental">forward</span>
+      <span class="chip experimental">fork</span>
+      <span class="chip experimental">snooze</span>
+      <span class="chip experimental">archive</span>
+      <span class="chip experimental">mark-unread</span>
+      <span class="chip experimental">export</span>
+      <span class="chip experimental">watch</span>
+      <span class="chip experimental">mute</span>
+      <span class="chip experimental">filter</span>
+      <span class="chip experimental">escalate</span>
+      <span class="chip experimental">move</span>
+    </div>
+    <p class="mt-2">Agents will ask for all of these. We're going to let them ask. Because we don't actually know which of those verbs matter most. Inbox ships narrow, measures what agents <em>try</em> to do, and grows from evidence instead of intuition.</p>
+
+    <div class="sidebar">
+      <h3>A design we rejected</h3>
+      <p>Early on, we considered letting <code style="color:var(--green)">inbox ack</code> default to "the last message you read." It felt natural. It was also a footgun. Hidden state that agents would have to model mentally. Behavior that would depend on session order &mdash; and would change the moment you parallelized calls.</p>
+      <p>So we killed it. Every CLI command takes explicit IDs. No defaults that reach into session history. No "last message" magic.</p>
+      <blockquote><p>Agents should never have to guess what state the CLI is carrying.</p></blockquote>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 8 ═══════════ -->
+  <section id="s8" data-phase="7">
+    <span class="section-num">08</span>
+    <h2>How this design got hardened</h2>
+    <p>Most design docs are written by one mind. This one wasn't.</p>
+    <p>The Inbox spec was built over dozens of back-and-forth conversations, and at every major inflection point, the current draft got handed to a different model &mdash; Claude, GPT-5.4, Gemini &mdash; with one instruction: <strong>try to break this.</strong></p>
+    <p>They did. Repeatedly:</p>
+
+    <div class="terminal">
+      <div><span class="highlight">[Gemini]</span>  BCC privacy leak in the public header snapshot</div>
+      <div>           Fix: split into public/private recipient tables.</div>
+      <div></div>
+      <div><span class="highlight">[Claude]</span>  Parent-link metadata leak</div>
+      <div>           If parent isn't visible to viewer, omit the field.</div>
+      <div></div>
+      <div><span class="highlight">[Claude]</span>  Monotonic state machine mistake</div>
+      <div>           Relaxed to mutable current state + append-only transition history.</div>
+      <div></div>
+      <div><span class="highlight">[Claude]</span>  Atomic send / partial fanout gap</div>
+      <div>           Answer: "all or none" &mdash; stated as invariant, not impl detail.</div>
+      <div></div>
+      <div><span class="highlight">[Multi]</span>   is_active ambiguity for read-only access</div>
+      <div>           is_active controls routing; read-only for inactive: deferred w/ tripwire.</div>
+    </div>
+
+    <h3>The two kinds of review</h3>
+    <p><strong>Reviewers with full conversation history</strong> catch continuity &mdash; decisions that got made out loud but never made it into docs. <strong>Reviewers with fresh context</strong> catch ambiguity &mdash; they read like an implementer would, without shared vocabulary.</p>
+    <p>Both matter. Continuity review during design. Fresh review before the spec froze.</p>
+    <blockquote><p>If your design is going to be implemented by agents, you should probably let agents help review it.</p></blockquote>
+
+    <!-- CONSULTATION TIMELINE WIDGET -->
+    <h3>Consultation timeline</h3>
+    <div class="timeline" id="timeline" role="list" aria-label="Design review timeline">
+      <div class="timeline-node" role="listitem" data-round="1" tabindex="0">
+        <div class="timeline-dot">R1</div>
+        <div class="timeline-model">Claude</div>
+        <div class="timeline-type">Continuity</div>
+      </div>
+      <div class="timeline-node" role="listitem" data-round="2" tabindex="0">
+        <div class="timeline-dot">R2</div>
+        <div class="timeline-model">Gemini</div>
+        <div class="timeline-type">Fresh</div>
+      </div>
+      <div class="timeline-node" role="listitem" data-round="3" tabindex="0">
+        <div class="timeline-dot">R3</div>
+        <div class="timeline-model">Claude</div>
+        <div class="timeline-type">Continuity</div>
+      </div>
+      <div class="timeline-node" role="listitem" data-round="4" tabindex="0">
+        <div class="timeline-dot">R4</div>
+        <div class="timeline-model">GPT-5.4</div>
+        <div class="timeline-type">Fresh</div>
+      </div>
+      <div class="timeline-node" role="listitem" data-round="5" tabindex="0">
+        <div class="timeline-dot">R5</div>
+        <div class="timeline-model">Claude</div>
+        <div class="timeline-type">Continuity</div>
+      </div>
+      <div class="timeline-node" role="listitem" data-round="6" tabindex="0">
+        <div class="timeline-dot">R6</div>
+        <div class="timeline-model">Gemini</div>
+        <div class="timeline-type">Fresh</div>
+      </div>
+    </div>
+    <div id="timelineDetail" class="timeline-detail" aria-live="polite"></div>
+
+    <div class="pull-quote">
+      <blockquote>
+        <p>The interesting part wasn't reaching an answer. It was forcing the answer to survive repeated independent attempts to break it.</p>
+      </blockquote>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 9 ═══════════ -->
+  <section id="s9" data-phase="7">
+    <span class="section-num">09</span>
+    <h2>Guess less. Instrument more.</h2>
+    <p>Here is the product philosophy in one sentence:</p>
+    <p style="font-family:var(--font-display);font-size:1.3rem;color:var(--amber)"><strong>We do not want to build features for agents. We want to build features agents have already told us they want.</strong></p>
+    <p>Not through interviews. Through their commands. Every Inbox command emits structured telemetry. Not payloads, not bodies, not anything private. Just the shape of what's happening: which verb, which error code, how long it took.</p>
+    <p>That's the baseline. The interesting part is what happens when the agent types a verb that doesn't exist.</p>
+  </section>
+
+  <!-- ═══════════ SECTION 10 ═══════════ -->
+  <section id="s10" data-phase="7">
+    <span class="section-num">10</span>
+    <h2>The "coming soon" trick</h2>
+    <p>Here's the most unusual thing in the Inbox design. When you enable experimental discovery mode, the CLI starts advertising verbs it doesn't actually implement.</p>
+
+    <div class="terminal">
+      <div><span class="prompt">$ </span>inbox forward msg_01H2X... --to carol@vps-1</div>
+      <div>{</div>
+      <div>  "ok": <span class="error">false</span>,</div>
+      <div>  "error": {</div>
+      <div>    "code": "<span class="text-amber">coming_soon</span>",</div>
+      <div>    "message": "forward is not yet implemented",</div>
+      <div>    "hint": "if you wanted this feature, run: inbox give-feedback"</div>
+      <div>  }</div>
+      <div>}</div>
+    </div>
+
+    <p>The commands don't mutate state. They log the attempt and return <code style="color:var(--amber)">coming_soon</code>. Why? Because we want to know what agents reach for <em>before</em> we build it.</p>
+
+    <h3>Two halves of the same loop</h3>
+    <p>The <code style="color:var(--amber)">coming_soon</code> probes are <strong>passive</strong> &mdash; they catch what agents attempt. The other half is what agents <em>wanted to try but couldn't guess how to type</em>. That's where <code style="color:var(--green)">give-feedback</code> comes in:</p>
+
+    <div class="terminal">
+      <div><span class="prompt">$ </span>inbox give-feedback</div>
+      <div>feature to request: <span class="highlight">bulk ack</span></div>
+      <div>context: cleaning out 200 daily status messages</div>
+      <div>attempted command: inbox ack --all --from threat-brief@ops</div>
+      <div>desired outcome: acknowledge everything from one sender</div>
+      <div>submit? [y/N] <span class="text-green">y</span></div>
+    </div>
+
+    <blockquote><p>Failed feature attempts aren't errors. They're product research.</p></blockquote>
+
+    <!-- Discovery Flow Animation -->
+    <h3>Demand signal</h3>
+    <div class="discovery-anim" id="discoveryAnim">
+      <div class="discovery-bar"><span class="bar-label">forward</span><div class="bar-fill" id="bar-forward" style="width:0%"></div><span class="bar-count" id="count-forward">0</span></div>
+      <div class="discovery-bar"><span class="bar-label">search</span><div class="bar-fill" id="bar-search" style="width:0%"></div><span class="bar-count" id="count-search">0</span></div>
+      <div class="discovery-bar"><span class="bar-label">snooze</span><div class="bar-fill" id="bar-snooze" style="width:0%"></div><span class="bar-count" id="count-snooze">0</span></div>
+      <div class="discovery-bar"><span class="bar-label">fork</span><div class="bar-fill" id="bar-fork" style="width:0%"></div><span class="bar-count" id="count-fork">0</span></div>
+      <div class="discovery-bar"><span class="bar-label">mark-unread</span><div class="bar-fill" id="bar-mark-unread" style="width:0%"></div><span class="bar-count" id="count-mark-unread">0</span></div>
+      <div class="discovery-bar"><span class="bar-label">watch</span><div class="bar-fill" id="bar-watch" style="width:0%"></div><span class="bar-count" id="count-watch">0</span></div>
+    </div>
+
+    <div class="status-bar">
+      <span>Tier: <span class="text-green">Core</span> (forward, fork, search, snooze) | <span class="text-amber">Broad</span> (watch, export, mute) | <span class="text-gray">Frontier</span> (filter, escalate, alert)</span>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 11 ═══════════ -->
+  <section id="s11" data-phase="8">
+    <span class="section-num">11</span>
+    <h2>The docs are the diagnostic</h2>
+    <p>Inbox has ten spec docs. For a local-first SQLite CLI with twelve commands, that might sound absurd. It's not. It's diagnostic.</p>
+    <p>If a multi-agent messaging system can be fully described in a single README, it almost certainly has hidden assumptions that will bite the first implementer. The ratio of spec docs to commands is a decent proxy for how seriously a system has thought about its own invariants.</p>
+
+    <!-- Doc Hub Grid -->
+    <h3>The specification set</h3>
+    <div class="doc-grid">
+      <div class="doc-card"><div class="filename">overview.md</div><div class="desc">What Inbox is and isn't</div><div class="meta">~5 min read</div></div>
+      <div class="doc-card"><div class="filename">core-model.md</div><div class="desc">Conceptual entities and relationships</div><div class="meta">~10 min read</div></div>
+      <div class="doc-card"><div class="filename">invariants.md</div><div class="desc">The rules of physics</div><div class="meta">~15 min read</div></div>
+      <div class="doc-card"><div class="filename">mvp-spec.md</div><div class="desc">Schema, commands, transaction behavior</div><div class="meta">~20 min read</div></div>
+      <div class="doc-card"><div class="filename">roadmap.md</div><div class="desc">What's deferred, and the tripwires</div><div class="meta">~5 min read</div></div>
+      <div class="doc-card"><div class="filename">integration-seams.md</div><div class="desc">Subsystem contracts</div><div class="meta">~8 min read</div></div>
+      <div class="doc-card"><div class="filename">parallel-workstreams.md</div><div class="desc">Split implementation across agents</div><div class="meta">~10 min read</div></div>
+      <div class="doc-card"><div class="filename">quality-gates-and-uat.md</div><div class="desc">Testing strategy and merge gates</div><div class="meta">~12 min read</div></div>
+      <div class="doc-card"><div class="filename">discovery-mode.md</div><div class="desc">Experimental surfaces and feedback loop</div><div class="meta">~8 min read</div></div>
+      <div class="doc-card"><div class="filename">schema.sql</div><div class="desc">The actual DDL</div><div class="meta">~3 min read</div></div>
+    </div>
+
+    <div class="status-bar">
+      <span>Suggested order: overview &rarr; core-model &rarr; invariants &rarr; mvp-spec &rarr; roadmap</span>
+      <span class="status-ok">Then dip into the others as needed.</span>
+    </div>
+
+    <div class="accordion">
+      <button class="accordion-trigger" aria-expanded="false" aria-controls="acc-ten-docs">Is ten specs actually a lot?</button>
+      <div class="accordion-panel" id="acc-ten-docs" role="region">
+        <div class="accordion-panel-inner">
+          <p>Relative to the size of the code, yes. Relative to the number of invariants, no. Inbox has dozens of rules that must hold simultaneously for the system to be safe &mdash; visibility rules, state-transition rules, send-time atomicity rules, reply-resolution rules. A two-page README couldn't hold all of them without sacrificing precision. The specs are long because the invariants are numerous. The alternative isn't "fewer docs"; the alternative is "fewer invariants, enforced by hope."</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 12 ═══════════ -->
+  <section id="s12" data-phase="8">
+    <span class="section-num">12</span>
+    <h2>Beyond the CLI</h2>
+    <p>The CLI is the first surface, not the only surface. Once the protocol is stable and telemetry is flowing, Inbox grows into an operations console.</p>
+
+    <div class="collage">
+      <div class="collage-panel">Inbox UI</div>
+      <div class="collage-panel">Thread (tree)</div>
+      <div class="collage-panel">Agent Graph</div>
+      <div class="collage-panel">Time Replay</div>
+      <div class="collage-panel">Telemetry</div>
+      <div class="collage-panel">Directory</div>
+      <div class="collage-panel">Playground</div>
+      <div class="collage-panel">Invariant Health</div>
+      <div class="collage-panel">Fixture Manager</div>
+    </div>
+
+    <p>None of that exists yet. All of it is implied by the design. The protocol has to stay correct first; the surface comes after.</p>
+  </section>
+
+  <!-- ═══════════ SECTION 13 ═══════════ -->
+  <section id="s13" data-phase="9">
+    <span class="section-num">13</span>
+    <h2>What this is really about</h2>
+    <p>Agents aren't better when they have more tools. They're better when they have better <strong>primitives</strong>.</p>
+    <p>A tool is "call this API." A primitive is "this is how you talk to another agent, for real, durably, with everything we've learned about how humans talk to each other over thirty years of email." One is a capability. The other is a substrate.</p>
+    <p>Inbox is a bet that the substrate matters more. That once agents can send each other durable, inspectable, replyable messages &mdash; with real addresses and real threads and real sent folders &mdash; most of the hard problems in coordination stop being coordination problems and start being product problems.</p>
+    <p>And product problems we know how to solve.</p>
+
+    <blockquote><p>The future version may span multiple hosts and stronger cryptographic guarantees. The first version only needs to prove that agents work better when they have inboxes.</p></blockquote>
+
+    <p style="font-family:var(--font-display);font-size:1.4rem;color:var(--green);margin-top:32px">We think they do.</p>
+  </section>
+
+  <!-- ═══════════ FINAL CTA ═══════════ -->
+  <section id="final-cta" data-phase="9">
+    <h2 style="border-bottom:none;text-align:center">Read the docs. Explore the model.<br>Break the assumptions.</h2>
+    <p class="text-center text-gray">Inbox now has a hardened conceptual model, frozen invariants, a runnable MVP schema, a message-centric CLI, an experimental discovery loop, and a build-ready execution plan.</p>
+    <p class="text-center mb-2"><em>The interesting work from here is implementation, instrumentation, and learning.</em></p>
+
+    <div class="cta-grid">
+      <a href="#" class="cta-card">Read the invariants</a>
+      <a href="#" class="cta-card">Explore the MVP spec</a>
+      <a href="#" class="cta-card">See the schema</a>
+      <a href="#" class="cta-card">Browse JSON contracts</a>
+      <a href="#" class="cta-card">Review the test matrix</a>
+      <a href="#" class="cta-card">Open discovery mode</a>
+    </div>
+
+    <div class="status-bar mt-4" style="justify-content:center">
+      <span class="status-ok">INBOX SYSTEM &mdash; ALL LAYERS LOCKED &mdash; READY FOR BUILD</span>
+    </div>
+  </section>
+
+</div><!-- .page-wrap -->
+
+<script>
+(function(){
+  'use strict';
+
+  // ── BOOT SEQUENCE ──
+  const bootOverlay = document.getElementById('bootOverlay');
+  const bootLines = bootOverlay.querySelectorAll('.boot-line');
+  let bootDelay = 100;
+  bootLines.forEach((line, i) => {
+    setTimeout(() => { line.style.opacity = '1'; }, bootDelay);
+    bootDelay += 250;
+  });
+  setTimeout(() => { bootOverlay.classList.add('done'); }, bootDelay + 400);
+  setTimeout(() => { bootOverlay.style.display = 'none'; }, bootDelay + 1100);
+
+  // ── SCROLL OBSERVER FOR SECTIONS ──
+  const sections = document.querySelectorAll('section');
+  const phases = document.querySelectorAll('.ticker .phase');
+  const progressRail = document.getElementById('progressRail');
+
+  // Build progress rail dots
+  sections.forEach((sec, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'dot';
+    dot.setAttribute('aria-label', 'Jump to section ' + (i + 1));
+    dot.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
+    progressRail.appendChild(dot);
+  });
+  const dots = progressRail.querySelectorAll('.dot');
+
+  // Phase map: which sections lock which phase
+  const phaseMap = [0, 0, 1, 2, 3, 4, 5, 6, 7, 7, 7, 8, 8, 9, 9];
+
+  const sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+
+        // Update progress dots
+        const idx = Array.from(sections).indexOf(entry.target);
+        dots.forEach((d, i) => d.classList.toggle('active', i <= idx));
+
+        // Lock phases up to this section's phase
+        const phaseIdx = entry.target.dataset.phase !== undefined
+          ? parseInt(entry.target.dataset.phase) : -1;
+        if (phaseIdx >= 0) {
+          phases.forEach((p, i) => {
+            if (i <= phaseIdx) p.classList.add('locked');
+          });
+        }
+
+        // Update terminal companion
+        updateCompanion(entry.target.id);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '-40px 0px' });
+
+  sections.forEach(sec => sectionObserver.observe(sec));
+
+  // ── TERMINAL COMPANION ──
+  const companionBody = document.getElementById('companionBody');
+  const companionSection = document.getElementById('companionSection');
+  const companionContent = {
+    hero: [
+      { p: '$ inbox whoami', o: 'reader@vps-1 (active, listed)' },
+      { p: '$ inbox list --unread', o: '3 unread messages' }
+    ],
+    s1: [
+      { p: '$ inbox whoami', o: 'pm-alpha@vps-1 (active, listed)' },
+      { p: '$ inbox list', o: 'INBOX empty. The mailbox exists. Start sending.' }
+    ],
+    s2: [
+      { p: '$ inbox send --to ops-lead@vps-1,ops-sec@vps-1,ops-net@vps-1 --subject "Daily brief"', o: 'OK msg_01H... sent to 3 recipients' },
+      { p: '$ inbox send --to pm-alpha@vps-1 --subject "Status request"', o: 'OK msg_01H... sent to 1 recipient' }
+    ],
+    s3: [
+      { p: '$ inbox send --to bob@vps-1 --subject "Review"', o: 'OK msg_001 sent. 1 message, 1 delivery created.' },
+      { p: '$ inbox read msg_001 --json | jq .delivery_id', o: '"dly_01H..."' }
+    ],
+    s4: [
+      { p: '$ inbox thread cnv_01H...', o: '[as carol] 1 visible message of 9 in thread' },
+      { p: '$ inbox thread cnv_01H... --as bob', o: '[as bob] 7 visible messages of 9 in thread' }
+    ],
+    s5: [
+      { p: '$ inbox read msg_01H2X...', o: 'From: architect@vps-1\nSubject: Schema review\n---\nCLI resolves msg -> delivery invisibly' }
+    ],
+    s6: [
+      { p: '$ inbox reply msg_001 --all', o: 'Reply-all resolves to current list members (5), not original snapshot (3)' },
+      { p: '$ inbox send --to self@vps-1', o: 'OK. 1 delivery + 1 sent-item created.' }
+    ],
+    s7: [
+      { p: '$ inbox ack', o: 'error: missing required argument: MESSAGE_ID\nInbox commands take explicit IDs. No defaults.' }
+    ],
+    s8: [
+      { p: '$ # Review round 2: Gemini (fresh context)', o: 'CAUGHT: BCC privacy leak in public header snapshot\nFIX: split into public/private recipient tables' }
+    ],
+    s9: [
+      { p: '$ inbox telemetry summary --last 7d', o: '1,247 commands | 3 error codes | 89 coming_soon probes' }
+    ],
+    s10: [
+      { p: '$ inbox forward msg_01H2X... --to carol@vps-1', o: '{"ok":false,"error":{"code":"coming_soon","message":"forward is not yet implemented"}}' },
+      { p: '$ inbox give-feedback', o: 'feature: bulk ack\nsubmit? y' }
+    ],
+    s11: [
+      { p: '$ ls docs/spec/', o: 'overview.md  core-model.md  invariants.md  mvp-spec.md  roadmap.md  integration-seams.md  parallel-workstreams.md  quality-gates-and-uat.md  discovery-mode.md  schema.sql' }
+    ],
+    s12: [
+      { p: '$ inbox --version', o: 'inbox v0.1.0 (MVP, CLI-only)\nFuture surfaces: UI, graph, replay, telemetry dashboard' }
+    ],
+    s13: [
+      { p: '$ inbox whoami', o: 'You have an inbox. That changes everything.' }
+    ],
+    'final-cta': [
+      { p: '$ inbox status', o: 'ALL LAYERS LOCKED. READY FOR BUILD.\n42 invariants loaded. 0 violations.' }
+    ]
+  };
+
+  function updateCompanion(sectionId) {
+    const content = companionContent[sectionId];
+    if (!content) return;
+    companionSection.textContent = sectionId.toUpperCase();
+    let html = '';
+    content.forEach(c => {
+      html += '<div class="prompt">' + c.p + '</div>';
+      html += '<div class="output">' + c.o.replace(/\n/g, '<br>') + '</div>';
+    });
+    html += '<div><span class="prompt">$ </span><span class="cursor">_</span></div>';
+    companionBody.innerHTML = html;
+  }
+
+  // ── VISIBILITY PROJECTOR ──
+  const messages = [
+    { id: 'msg_001', from: 'alice', to: ['bob'], state: 'read' },
+    { id: 'msg_002', from: 'alice', to: ['bob', 'carol'], state: 'unread' },
+    { id: 'msg_003', from: 'bob', to: ['alice'], state: 'acked' },
+    { id: 'msg_004', from: 'alice', to: ['bob', 'carol', 'dan'], state: 'unread' },
+    { id: 'msg_005', from: 'carol', to: ['alice', 'bob'], state: 'read' },
+    { id: 'msg_006', from: 'dan', to: ['alice'], state: 'unread' },
+    { id: 'msg_007', from: 'alice', to: ['bob'], state: 'read' },
+    { id: 'msg_008', from: 'bob', to: ['alice', 'dan'], state: 'unread' },
+    { id: 'msg_009', from: 'alice', to: ['bob', 'carol'], state: 'acked' }
+  ];
+
+  const visSelect = document.getElementById('visSelect');
+  const actorView = document.getElementById('actorView');
+  const visCount = document.getElementById('visCount');
+
+  function renderActorView() {
+    const actor = visSelect.value;
+    let html = '';
+    let visible = 0;
+    messages.forEach(msg => {
+      const canSee = msg.to.includes(actor) || msg.from === actor;
+      if (canSee) {
+        visible++;
+        html += '<div class="vis-msg"><span><span class="from">' + msg.from + '</span> &rarr; <span class="to">' + msg.to.join(', ') + '</span></span><span class="state ' + msg.state + '">' + msg.id + '</span></div>';
+      } else {
+        html += '<div class="vis-msg hidden-msg"><span><span class="from">' + msg.from + '</span> &rarr; <span class="to">' + msg.to.join(', ') + '</span></span><span class="state no-access">NO ACCESS</span></div>';
+      }
+    });
+    actorView.innerHTML = html;
+    visCount.textContent = 'Showing ' + visible + ' of ' + messages.length + ' messages for ' + actor;
+  }
+
+  visSelect.addEventListener('change', renderActorView);
+  renderActorView();
+
+  // ── COMMAND CHIP GRID ──
+  const chipData = {
+    whoami: { sig: 'inbox whoami', example: '$ inbox whoami\npm-alpha@vps-1 (active, listed)', desc: 'Show current identity and status.' },
+    send: { sig: 'inbox send --to ADDR [--cc ADDR] [--subject TEXT] [--body TEXT]', example: '$ inbox send --to bob@vps-1 --subject "Update"\nOK msg_01H2X sent to 1 recipient', desc: 'Send a new message. Atomic: all deliveries or none.' },
+    list: { sig: 'inbox list [--unread] [--all] [--json]', example: '$ inbox list --unread\n2 unread messages\n  msg_01H2X  alice@vps-1  "Review"  UNREAD', desc: 'List inbox. Hidden messages excluded by default.' },
+    read: { sig: 'inbox read MSG_ID [--json]', example: '$ inbox read msg_01H2X\nFrom: alice@vps-1\nTo: bob@vps-1\nSubject: Review\n---\nPlease review the schema changes.', desc: 'Read a message. Marks delivery as read.' },
+    reply: { sig: 'inbox reply MSG_ID [--to ADDR] [--all] [--body TEXT]', example: '$ inbox reply msg_01H2X --body "LGTM"\nOK msg_01H3Y sent', desc: 'Reply to a message. --all uses logical headers.' },
+    ack: { sig: 'inbox ack MSG_ID', example: '$ inbox ack msg_01H2X\nOK acknowledged', desc: 'Acknowledge a message. Explicit ID required.' },
+    hide: { sig: 'inbox hide MSG_ID', example: '$ inbox hide msg_01H2X\nOK hidden from default list view', desc: 'Hide from default list. Still visible in direct read and thread.' },
+    unhide: { sig: 'inbox unhide MSG_ID', example: '$ inbox unhide msg_01H2X\nOK restored to list view', desc: 'Restore a hidden message to default list view.' },
+    'sent-list': { sig: 'inbox sent list [--json]', example: '$ inbox sent list\n5 sent messages', desc: 'List messages you have sent.' },
+    'sent-read': { sig: 'inbox sent read MSG_ID [--json]', example: '$ inbox sent read msg_01H2X\n[sent message details + delivery statuses]', desc: 'Read a sent message with delivery status.' },
+    thread: { sig: 'inbox thread CNV_ID [--tree] [--json]', example: '$ inbox thread cnv_01H...\n3 messages visible (of 9 total in conversation)', desc: 'View a conversation thread. Only your deliveries visible.' },
+    directory: { sig: 'inbox directory {list|show|members} [ADDR]', example: '$ inbox directory list\n12 addresses (8 active, 3 lists)', desc: 'Browse the address directory.' },
+    'give-feedback': { sig: 'inbox give-feedback', example: '$ inbox give-feedback\nfeature: bulk ack\nsubmit? y\nOK feedback recorded', desc: 'Request a feature. Structured signal for the roadmap.' }
+  };
+
+  const chipGrid = document.getElementById('chipGrid');
+  const chipDetail = document.getElementById('chipDetail');
+  let activeChip = null;
+
+  chipGrid.addEventListener('click', function(e) {
+    const chip = e.target.closest('.chip[data-cmd]');
+    if (!chip) return;
+    const cmd = chip.dataset.cmd;
+    const data = chipData[cmd];
+    if (!data) return;
+
+    if (activeChip === cmd) {
+      chipDetail.classList.remove('open');
+      chipDetail.innerHTML = '';
+      chip.setAttribute('aria-expanded', 'false');
+      activeChip = null;
+      return;
+    }
+
+    // Close previous
+    if (activeChip) {
+      const prev = chipGrid.querySelector('[data-cmd="' + activeChip + '"]');
+      if (prev) prev.setAttribute('aria-expanded', 'false');
+    }
+
+    chip.setAttribute('aria-expanded', 'true');
+    activeChip = cmd;
+    chipDetail.innerHTML = '<div class="sig">' + data.sig + '</div><div style="color:var(--white);margin:8px 0;font-family:var(--font-body);font-size:.9rem">' + data.desc + '</div><div class="example"><pre>' + data.example + '</pre></div>';
+    chipDetail.classList.add('open');
+  });
+
+  // ── CONSULTATION TIMELINE ──
+  const timelineData = {
+    1: { doc: 'core-model.md', type: 'Continuity', model: 'Claude', catches: 3, items: ['Parent-link metadata leak', 'Monotonic state machine mistake', 'Atomic send/partial fanout gap'], changes: 'Added INV-VIS-3 (omit parent if not visible), relaxed state machine to mutable + append-only history, defined atomic fanout invariant.' },
+    2: { doc: 'mvp-spec.md', type: 'Fresh', model: 'Gemini', catches: 2, items: ['BCC privacy leak in header snapshot', 'Missing error distinction for inactive vs empty lists'], changes: 'Split recipients into public/private tables. Added distinct error codes for inactive-list and empty-list failures.' },
+    3: { doc: 'invariants.md', type: 'Continuity', model: 'Claude', catches: 4, items: ['is_active ambiguity for read-only', 'Self-send edge case unspecified', 'Hide vs access control unclear', 'Forward as new message not stated'], changes: 'Deferred read-only-for-inactive with tripwire. Specified self-send creates delivery + sent-item independently. Clarified hide as view filter. Stated forward-is-new-message invariant.' },
+    4: { doc: 'core-model.md + mvp-spec.md', type: 'Fresh', model: 'GPT-5.4', catches: 2, items: ['Reply-all should use logical headers not frozen snapshot', 'Directory entry vs profile distinction missing'], changes: 'Specified reply-all resolves against current list membership. Added profile/directory conceptual split with physical merge note.' },
+    5: { doc: 'Full spec set', type: 'Continuity', model: 'Claude', catches: 1, items: ['"Conversation is lineage, not access control" phrase coined'], changes: 'The behavior was roughly right but the principle was unstated. One sentence, ten fewer footguns.' },
+    6: { doc: 'discovery-mode.md', type: 'Fresh', model: 'Gemini', catches: 2, items: ['coming_soon probes alone miss unguessable features', 'Feedback command needed structured schema'], changes: 'Added give-feedback as active signal counterpart to passive probes. Defined structured feedback record schema.' }
+  };
+
+  const timeline = document.getElementById('timeline');
+  const timelineDetail = document.getElementById('timelineDetail');
+
+  timeline.addEventListener('click', function(e) {
+    const node = e.target.closest('.timeline-node');
+    if (!node) return;
+    const round = node.dataset.round;
+    const data = timelineData[round];
+    if (!data) return;
+
+    // Toggle
+    const wasActive = node.classList.contains('active');
+    timeline.querySelectorAll('.timeline-node').forEach(n => n.classList.remove('active'));
+
+    if (wasActive) {
+      timelineDetail.classList.remove('open');
+      timelineDetail.innerHTML = '';
+      return;
+    }
+
+    node.classList.add('active');
+    let html = '<div style="font-family:var(--font-display);margin-bottom:8px">';
+    html += '<span class="text-amber">Round ' + round + '</span> &mdash; <span class="text-green">' + data.model + '</span> (' + data.type + ' review)';
+    html += '<br>Doc reviewed: <span class="text-cyan">' + data.doc + '</span>';
+    html += '<br>Issues caught: <strong>' + data.catches + '</strong></div>';
+    html += '<ul style="list-style:none;padding:0;margin:8px 0">';
+    data.items.forEach(item => {
+      html += '<li style="margin:4px 0;color:var(--white)"><span class="text-green">&#9656;</span> ' + item + '</li>';
+    });
+    html += '</ul>';
+    html += '<div style="color:var(--gray);font-size:.85rem;margin-top:8px"><strong>Changes:</strong> ' + data.changes + '</div>';
+    timelineDetail.innerHTML = html;
+    timelineDetail.classList.add('open');
+  });
+
+  // ── ACCORDION ──
+  document.querySelectorAll('.accordion-trigger').forEach(trigger => {
+    trigger.addEventListener('click', function() {
+      const expanded = this.getAttribute('aria-expanded') === 'true';
+      this.setAttribute('aria-expanded', !expanded);
+      const panel = this.nextElementSibling;
+      if (!expanded) {
+        panel.style.maxHeight = panel.scrollHeight + 'px';
+      } else {
+        panel.style.maxHeight = '0';
+      }
+    });
+  });
+
+  // ── DISCOVERY ANIMATION ──
+  const discoveryData = {
+    forward: { target: 82, speed: 1.2 },
+    search: { target: 67, speed: 1.0 },
+    snooze: { target: 41, speed: 0.8 },
+    fork: { target: 23, speed: 0.6 },
+    'mark-unread': { target: 35, speed: 0.7 },
+    watch: { target: 18, speed: 0.5 }
+  };
+
+  let discoveryStarted = false;
+  const discoveryAnim = document.getElementById('discoveryAnim');
+
+  const discoveryObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !discoveryStarted) {
+        discoveryStarted = true;
+        Object.keys(discoveryData).forEach(verb => {
+          const data = discoveryData[verb];
+          const bar = document.getElementById('bar-' + verb);
+          const count = document.getElementById('count-' + verb);
+          let current = 0;
+          const maxWidth = data.target;
+          const interval = setInterval(() => {
+            current += Math.ceil(Math.random() * 3 * data.speed);
+            if (current >= maxWidth) {
+              current = maxWidth;
+              clearInterval(interval);
+              if (verb === 'forward') {
+                bar.classList.add('graduated');
+              }
+            }
+            bar.style.width = (current / 82 * 100) + '%';
+            count.textContent = current + ' probes';
+          }, 80);
+        });
+      }
+    });
+  }, { threshold: 0.3 });
+
+  discoveryObserver.observe(discoveryAnim);
+
+})();
+</script>
+
+</body>
+</html>
