@@ -6,11 +6,11 @@ export default defineConfig({
   base: "/app/",
   plugins: [react(), tailwindcss()],
   server: {
-    port: 58850,
+    port: Number(process.env.PLAYWRIGHT_PORT || process.env.VITE_PORT) || 58550,
     allowedHosts: ["inbox.claude.do"],
     proxy: {
       "/api": {
-        target: "http://localhost:38850",
+        target: `http://localhost:${process.env.INBOX_BFF_PORT || 38550}`,
         changeOrigin: true,
       },
     },
