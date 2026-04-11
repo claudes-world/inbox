@@ -19,7 +19,8 @@
     "@xyflow/react": "^12.10.2",
     "d3-force": "^3.0.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
