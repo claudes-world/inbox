@@ -21,20 +21,99 @@ if (dbPath !== ":memory:" && !dbPath.startsWith("file::memory:")) {
   }
 }
 
-const db: DatabaseType = new Database(dbPath);
+const rawDb: DatabaseType = new Database(dbPath);
 
 // Apply pragmas
-db.pragma("foreign_keys = ON");
-db.pragma("journal_mode = WAL");
+rawDb.pragma("foreign_keys = ON");
+rawDb.pragma("journal_mode = WAL");
 
 const schemaDir = resolveSchemaDir();
 if (schemaDir) {
-  runMigrations(db, schemaDir);
+  runMigrations(rawDb, schemaDir);
 } else {
   console.warn(
     "Warning: Could not find schema/ directory. Database may not be initialized."
   );
 }
+
+const dbTracer = getTracer('inbox-bff-db');
+
+/**
+ * Wrap a synchronous SQLite operation with an OTEL span.
+ * Also called automatically by the db Proxy for every .prepare().get/.all/.run.
+ *
+ * @param operation  SQL verb: 'select', 'insert', 'update', 'delete'
+ * @param table      Primary table being accessed
+ * @param fn         The DB call to execute
+ */
+export function tracedQuery<T>(operation: string, table: string, fn: () => T): T {
+  const span = dbTracer.startSpan(`db.${operation}`, {
+    attributes: {
+      'db.system': 'sqlite',
+      'db.operation': operation,
+      'db.sql.table': table,
+    },
+  });
+  try {
+    // Execute fn in a context where this span is active, so any nested
+    // instrumentation is properly linked as a child span.
+    return context.with(trace.setSpan(context.active(), span), fn);
+  } catch (err) {
+    span.recordException(err instanceof Error ? err : String(err));
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw err;
+  } finally {
+    span.end();
+  }
+}
+
+// ── DB instrumentation proxy ──────────────────────────────────────────────────
+// Intercepts every .prepare() call and auto-wraps the returned statement's
+// .get/.all/.run methods with tracedQuery so every query emits an OTEL span
+// without manual wrapping at each call site.
+
+function extractSqlOperation(sql: string): string {
+  const match = /^\s*(SELECT|INSERT|UPDATE|DELETE|REPLACE)/i.exec(sql);
+  return match ? (match[1] ?? 'query').toLowerCase() : 'query';
+}
+
+function extractSqlTable(sql: string): string {
+  // Handles FROM <table>, INTO <table>, UPDATE <table>
+  const match = /\b(?:FROM|INTO|UPDATE)\s+(\w+)/i.exec(sql);
+  return match ? (match[1] ?? 'unknown') : 'unknown';
+}
+
+const db: DatabaseType = new Proxy(rawDb, {
+  get(target, prop) {
+    if (prop === 'prepare') {
+      return (sql: string) => {
+        const stmt = target.prepare(sql);
+        const operation = extractSqlOperation(sql);
+        const table = extractSqlTable(sql);
+        return new Proxy(stmt, {
+          get(s, method) {
+            if (method === 'get' || method === 'all' || method === 'run') {
+              return (...args: unknown[]) =>
+                tracedQuery(operation, table, () =>
+                  // Use Reflect.apply to preserve `this` (the statement object) so
+                  // better-sqlite3 native methods receive the correct receiver.
+                  Reflect.apply(s[method as 'get' | 'all' | 'run'], s, args) as unknown
+                );
+            }
+            // Bind all other statement methods to `s` so better-sqlite3 native
+            // methods receive the Statement instance as receiver, not the Proxy.
+            const val = s[method as keyof typeof s];
+            return typeof val === 'function' ? (val as (...a: unknown[]) => unknown).bind(s) : val;
+          },
+        });
+      };
+    }
+    // Bind all non-`prepare` Database methods to `target` so better-sqlite3
+    // native methods receive the Database instance as receiver, not the Proxy.
+    const val = target[prop as keyof typeof target];
+    return typeof val === 'function' ? (val as (...a: unknown[]) => unknown).bind(target) : val;
+  },
+});
 
 export default db;
 
@@ -196,33 +275,4 @@ export function nowMs(): number {
   return Date.now();
 }
 
-const dbTracer = getTracer('inbox-bff-db');
 
-/**
- * Wrap a synchronous SQLite operation with an OTEL span.
- * Use for the most expensive/critical DB operations — not every query.
- *
- * @param operation  SQL verb: 'select', 'insert', 'update', 'delete'
- * @param table      Primary table being accessed
- * @param fn         The DB call to execute
- */
-export function tracedQuery<T>(operation: string, table: string, fn: () => T): T {
-  const span = dbTracer.startSpan(`db.${operation}`, {
-    attributes: {
-      'db.system': 'sqlite',
-      'db.operation': operation,
-      'db.sql.table': table,
-    },
-  });
-  try {
-    // Execute fn in a context where this span is active, so any nested
-    // instrumentation is properly linked as a child span.
-    return context.with(trace.setSpan(context.active(), span), fn);
-  } catch (err) {
-    span.recordException(err instanceof Error ? err : String(err));
-    span.setStatus({ code: SpanStatusCode.ERROR });
-    throw err;
-  } finally {
-    span.end();
-  }
-}
