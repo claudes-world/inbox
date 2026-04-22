@@ -33,11 +33,12 @@ app.use('/api/*', async (c, next) => {
 
   // Use a placeholder name — routePath resolves to '/api/*' before next() runs.
   // We update it after next() to get the real template (e.g. /api/inbox/:messageId).
+  // Pass parentContext as the 3rd arg so the HTTP span is parented under the upstream trace.
   const span = httpTracer.startSpan(`${c.req.method} /api/*`, {
     attributes: {
       'http.method': c.req.method,
     },
-  });
+  }, parentContext);
   try {
     // Set span as active context (parented under extracted trace if present)
     // so DB child spans nest correctly under this request span.

@@ -48,13 +48,15 @@ const meterProvider = new MeterProvider({
 metrics.setGlobalMeterProvider(meterProvider);
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
-// Flush buffered spans/metrics on process termination to avoid data loss.
+// Flush buffered spans/metrics on process termination, then exit so the process
+// doesn't hang on live handles (HTTP server socket, keep-alive connections).
 const shutdown = async () => {
   await provider.shutdown();
   await meterProvider.shutdown();
+  process.exit(0);
 };
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => { void shutdown(); });
+process.on('SIGINT', () => { void shutdown(); });
 
 export function getTracer(name: string): Tracer {
   return trace.getTracer(name);
