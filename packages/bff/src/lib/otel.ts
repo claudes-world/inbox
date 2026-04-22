@@ -1,26 +1,33 @@
 import fs from 'node:fs/promises';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
+import { BatchSpanProcessor, SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { Resource } from '@opentelemetry/resources';
-import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+import { ATTR_DEPLOYMENT_ENVIRONMENT_NAME } from '@opentelemetry/semantic-conventions/incubating';
 import { context, trace, metrics, type Tracer, type Span, SpanStatusCode, type Meter, type ObservableResult } from '@opentelemetry/api';
 
 const resource = new Resource({
   [ATTR_SERVICE_NAME]: 'inbox-bff',
+  [ATTR_SERVICE_VERSION]: process.env['npm_package_version'] ?? '0.0.0',
+  [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: process.env['NODE_ENV'] ?? 'production',
 });
 
 // ── Traces ────────────────────────────────────────────────────────────────────
 const provider = new NodeTracerProvider({ resource });
 
 // OTLPTraceExporter silently drops spans when the collector is absent — no process crash.
+// Use BatchSpanProcessor in prod (non-blocking buffer flush) and SimpleSpanProcessor in dev.
+const otlpExporter = new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' });
 provider.addSpanProcessor(
-  new SimpleSpanProcessor(new OTLPTraceExporter({ url: 'http://localhost:4318/v1/traces' }))
+  process.env['NODE_ENV'] === 'development'
+    ? new SimpleSpanProcessor(otlpExporter)
+    : new BatchSpanProcessor(otlpExporter)
 );
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env['NODE_ENV'] === 'development') {
   provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
 }
 
@@ -39,6 +46,15 @@ const meterProvider = new MeterProvider({
 });
 
 metrics.setGlobalMeterProvider(meterProvider);
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// Flush buffered spans/metrics on process termination to avoid data loss.
+const shutdown = async () => {
+  await provider.shutdown();
+  await meterProvider.shutdown();
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 export function getTracer(name: string): Tracer {
   return trace.getTracer(name);

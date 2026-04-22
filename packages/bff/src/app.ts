@@ -11,7 +11,7 @@ import { analyticsRoutes } from "./routes/analytics.js";
 import { openApiRoutes } from "./routes/openapi.js";
 import { readLimiter, mutationLimiter } from "./lib/rate-limit.js";
 import { getTracer } from "./lib/otel.js";
-import { context, trace, SpanStatusCode } from "@opentelemetry/api";
+import { context, trace, propagation, SpanStatusCode } from "@opentelemetry/api";
 
 export const app = new Hono();
 
@@ -25,6 +25,12 @@ app.use("*", cors());
 const httpTracer = getTracer('inbox-bff-http');
 
 app.use('/api/*', async (c, next) => {
+  // Extract W3C traceparent/tracestate from incoming headers so distributed
+  // traces link correctly when a gateway or upstream service forwards a trace.
+  const headers: Record<string, string> = {};
+  c.req.raw.headers.forEach((v, k) => { headers[k] = v; });
+  const parentContext = propagation.extract(context.active(), headers);
+
   // Use a placeholder name — routePath resolves to '/api/*' before next() runs.
   // We update it after next() to get the real template (e.g. /api/inbox/:messageId).
   const span = httpTracer.startSpan(`${c.req.method} /api/*`, {
@@ -33,8 +39,9 @@ app.use('/api/*', async (c, next) => {
     },
   });
   try {
-    // Set span as active context so DB child spans nest correctly under this request span.
-    await context.with(trace.setSpan(context.active(), span), () => next());
+    // Set span as active context (parented under extracted trace if present)
+    // so DB child spans nest correctly under this request span.
+    await context.with(trace.setSpan(parentContext, span), () => next());
     // routePath is now resolved to the handler template after next() completes.
     const route = c.req.routePath;
     span.updateName(`${c.req.method} ${route}`);
