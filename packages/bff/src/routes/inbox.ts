@@ -4,7 +4,7 @@
  * Maps to CLI commands: inbox list, inbox read, inbox ack, inbox hide, inbox unhide
  */
 import { Hono } from "hono";
-import db, { addressIdToString, generateId, nowMs } from "../db.js";
+import db, { addressIdToString, generateId, nowMs, tracedQuery } from "../db.js";
 import { requireActor, errorEnvelope, parseLimit } from "../helpers.js";
 
 export const inboxRoutes = new Hono();
@@ -74,17 +74,18 @@ inboxRoutes.get("/", (c) => {
 
   const whereClause = conditions.join(" AND ");
 
-  const rows = db
-    .prepare(
-      `SELECT m.id, m.conversation_id, m.sender_address_id, m.subject, m.body,
-              d.engagement_state, d.visibility_state, d.effective_role, d.delivered_at_ms, d.id as delivery_id
-       FROM deliveries d
-       JOIN messages m ON m.id = d.message_id
-       WHERE ${whereClause}
-       ORDER BY d.delivered_at_ms DESC, d.id DESC
-       LIMIT ?`
-    )
-    .all(...params, limit) as Array<{
+  const rows = tracedQuery('select', 'deliveries', () =>
+    db
+      .prepare(
+        `SELECT m.id, m.conversation_id, m.sender_address_id, m.subject, m.body,
+                d.engagement_state, d.visibility_state, d.effective_role, d.delivered_at_ms, d.id as delivery_id
+         FROM deliveries d
+         JOIN messages m ON m.id = d.message_id
+         WHERE ${whereClause}
+         ORDER BY d.delivered_at_ms DESC, d.id DESC
+         LIMIT ?`
+      )
+      .all(...params, limit) as Array<{
     id: string;
     conversation_id: string;
     sender_address_id: string;
@@ -95,7 +96,8 @@ inboxRoutes.get("/", (c) => {
     effective_role: string;
     delivered_at_ms: number;
     delivery_id: string;
-  }>;
+  }>
+  );
 
   const items = rows.map((row) => {
     const sender = addressIdToString(row.sender_address_id) || "unknown@unknown";

@@ -10,10 +10,42 @@ import { eventsRoutes } from "./routes/events.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { openApiRoutes } from "./routes/openapi.js";
 import { readLimiter, mutationLimiter } from "./lib/rate-limit.js";
+import { getTracer } from "./lib/otel.js";
+import { SpanStatusCode } from "@opentelemetry/api";
 
 export const app = new Hono();
 
 app.use("*", cors());
+
+// ---------------------------------------------------------------------------
+// HTTP request tracing — wraps all /api/* requests with a span.
+// Uses c.req.routePath (Hono's template path, e.g. /api/inbox/:messageId)
+// rather than c.req.url to avoid high-cardinality span names from user IDs.
+// ---------------------------------------------------------------------------
+const httpTracer = getTracer('inbox-bff-http');
+
+app.use('/api/*', async (c, next) => {
+  const span = httpTracer.startSpan(`${c.req.method} ${c.req.routePath}`, {
+    attributes: {
+      'http.method': c.req.method,
+      'http.route': c.req.routePath,
+      'http.url': c.req.url,
+    },
+  });
+  try {
+    await next();
+    span.setAttribute('http.status_code', c.res.status);
+    if (c.res.status >= 500) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+  } catch (err) {
+    span.recordException(err instanceof Error ? err : String(err));
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw err;
+  } finally {
+    span.end();
+  }
+});
 
 // Liveness probe. Intentionally NOT rate limited — external monitors and
 // orchestrators must always be able to ping this.

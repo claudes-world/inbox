@@ -11,6 +11,7 @@ import db, {
   lookupAddress,
   generateId,
   nowMs,
+  tracedQuery,
 } from "../db.js";
 import { requireActor, errorEnvelope } from "../helpers.js";
 
@@ -291,8 +292,10 @@ export function executeSend(
     ).run(msgId);
   });
 
-  doSendTx();
-  return { messageId: msgId, conversationId: cnvId };
+  return tracedQuery('insert', 'messages', () => {
+    doSendTx();
+    return { messageId: msgId, conversationId: cnvId };
+  });
 }
 
 // ---------------------------------------------------------------------------

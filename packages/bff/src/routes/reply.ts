@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import db, {
   addressIdToString,
   lookupAddress,
+  tracedQuery,
 } from "../db.js";
 import { requireActor, errorEnvelope } from "../helpers.js";
 import { resolveRecipients, executeSend, type RecipientResolution } from "./send.js";
@@ -43,17 +44,19 @@ replyRoutes.post("/:messageId", async (c) => {
   }
 
   // Get the original message
-  const originalMsg = db
-    .prepare(
-      "SELECT conversation_id, sender_address_id, subject FROM messages WHERE id = ?"
-    )
-    .get(targetMessageId) as
-    | {
-        conversation_id: string;
-        sender_address_id: string;
-        subject: string;
-      }
-    | undefined;
+  const originalMsg = tracedQuery('select', 'messages', () =>
+    db
+      .prepare(
+        "SELECT conversation_id, sender_address_id, subject FROM messages WHERE id = ?"
+      )
+      .get(targetMessageId) as
+      | {
+          conversation_id: string;
+          sender_address_id: string;
+          subject: string;
+        }
+      | undefined
+  );
 
   if (!originalMsg) {
     return c.json(
