@@ -10,10 +10,47 @@ import { eventsRoutes } from "./routes/events.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { openApiRoutes } from "./routes/openapi.js";
 import { readLimiter, mutationLimiter } from "./lib/rate-limit.js";
+import { getTracer } from "./lib/otel.js";
+import { context, trace, SpanStatusCode } from "@opentelemetry/api";
 
 export const app = new Hono();
 
 app.use("*", cors());
+
+// ---------------------------------------------------------------------------
+// HTTP request tracing — wraps all /api/* requests with a span.
+// Uses c.req.routePath (Hono's template path, e.g. /api/inbox/:messageId)
+// rather than c.req.url to avoid high-cardinality span names from user IDs.
+// ---------------------------------------------------------------------------
+const httpTracer = getTracer('inbox-bff-http');
+
+app.use('/api/*', async (c, next) => {
+  // Use a placeholder name — routePath resolves to '/api/*' before next() runs.
+  // We update it after next() to get the real template (e.g. /api/inbox/:messageId).
+  const span = httpTracer.startSpan(`${c.req.method} /api/*`, {
+    attributes: {
+      'http.method': c.req.method,
+    },
+  });
+  try {
+    // Set span as active context so DB child spans nest correctly under this request span.
+    await context.with(trace.setSpan(context.active(), span), () => next());
+    // routePath is now resolved to the handler template after next() completes.
+    const route = c.req.routePath;
+    span.updateName(`${c.req.method} ${route}`);
+    span.setAttribute('http.route', route);
+    span.setAttribute('http.status_code', c.res.status);
+    if (c.res.status >= 500) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+  } catch (err) {
+    span.recordException(err instanceof Error ? err : String(err));
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw err;
+  } finally {
+    span.end();
+  }
+});
 
 // Liveness probe. Intentionally NOT rate limited — external monitors and
 // orchestrators must always be able to ping this.

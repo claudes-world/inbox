@@ -5,6 +5,8 @@
  * The database path comes from the INBOX_DB environment variable.
  */
 import Database, { type Database as DatabaseType } from "better-sqlite3";
+import { getTracer } from "./lib/otel.js";
+import { context, trace, SpanStatusCode } from "@opentelemetry/api";
 import path from "node:path";
 import fs from "node:fs";
 import { runMigrations, resolveSchemaDir } from "./migrations.js";
@@ -192,4 +194,35 @@ export function generateId(prefix: string): string {
  */
 export function nowMs(): number {
   return Date.now();
+}
+
+const dbTracer = getTracer('inbox-bff-db');
+
+/**
+ * Wrap a synchronous SQLite operation with an OTEL span.
+ * Use for the most expensive/critical DB operations — not every query.
+ *
+ * @param operation  SQL verb: 'select', 'insert', 'update', 'delete'
+ * @param table      Primary table being accessed
+ * @param fn         The DB call to execute
+ */
+export function tracedQuery<T>(operation: string, table: string, fn: () => T): T {
+  const span = dbTracer.startSpan(`db.${operation}`, {
+    attributes: {
+      'db.system': 'sqlite',
+      'db.operation': operation,
+      'db.sql.table': table,
+    },
+  });
+  try {
+    // Execute fn in a context where this span is active, so any nested
+    // instrumentation is properly linked as a child span.
+    return context.with(trace.setSpan(context.active(), span), fn);
+  } catch (err) {
+    span.recordException(err instanceof Error ? err : String(err));
+    span.setStatus({ code: SpanStatusCode.ERROR });
+    throw err;
+  } finally {
+    span.end();
+  }
 }
