@@ -100,12 +100,18 @@ const db: DatabaseType = new Proxy(rawDb, {
                   Reflect.apply(s[method as 'get' | 'all' | 'run'], s, args) as unknown
                 );
             }
-            return s[method as keyof typeof s];
+            // Bind all other statement methods to `s` so better-sqlite3 native
+            // methods receive the Statement instance as receiver, not the Proxy.
+            const val = s[method as keyof typeof s];
+            return typeof val === 'function' ? (val as (...a: unknown[]) => unknown).bind(s) : val;
           },
         });
       };
     }
-    return target[prop as keyof typeof target];
+    // Bind all non-`prepare` Database methods to `target` so better-sqlite3
+    // native methods receive the Database instance as receiver, not the Proxy.
+    const val = target[prop as keyof typeof target];
+    return typeof val === 'function' ? (val as (...a: unknown[]) => unknown).bind(target) : val;
   },
 });
 

@@ -53,6 +53,9 @@ metrics.setGlobalMeterProvider(meterProvider);
 // process.exit(0) is in `finally` so it runs even if a provider rejects (e.g.
 // collector unavailable), preventing unhandled-rejection hangs on SIGTERM.
 const shutdown = async () => {
+  // Hard-kill backstop: if flush stalls (e.g. collector network hang),
+  // force-exit after 10s. unref() so it doesn't prevent normal exit itself.
+  setTimeout(() => process.exit(1), 10_000).unref();
   try {
     await provider.shutdown();
     await meterProvider.shutdown();
