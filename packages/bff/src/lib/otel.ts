@@ -50,10 +50,15 @@ metrics.setGlobalMeterProvider(meterProvider);
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 // Flush buffered spans/metrics on process termination, then exit so the process
 // doesn't hang on live handles (HTTP server socket, keep-alive connections).
+// process.exit(0) is in `finally` so it runs even if a provider rejects (e.g.
+// collector unavailable), preventing unhandled-rejection hangs on SIGTERM.
 const shutdown = async () => {
-  await provider.shutdown();
-  await meterProvider.shutdown();
-  process.exit(0);
+  try {
+    await provider.shutdown();
+    await meterProvider.shutdown();
+  } finally {
+    process.exit(0);
+  }
 };
 process.on('SIGTERM', () => { void shutdown(); });
 process.on('SIGINT', () => { void shutdown(); });

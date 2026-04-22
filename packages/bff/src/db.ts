@@ -95,7 +95,9 @@ const db: DatabaseType = new Proxy(rawDb, {
             if (method === 'get' || method === 'all' || method === 'run') {
               return (...args: unknown[]) =>
                 tracedQuery(operation, table, () =>
-                  (s[method as 'get' | 'all' | 'run'] as (...a: unknown[]) => unknown)(...args)
+                  // Use Reflect.apply to preserve `this` (the statement object) so
+                  // better-sqlite3 native methods receive the correct receiver.
+                  Reflect.apply(s[method as 'get' | 'all' | 'run'], s, args) as unknown
                 );
             }
             return s[method as keyof typeof s];
