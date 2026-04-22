@@ -6,7 +6,7 @@
  */
 import Database, { type Database as DatabaseType } from "better-sqlite3";
 import { getTracer } from "./lib/otel.js";
-import { SpanStatusCode } from "@opentelemetry/api";
+import { context, trace, SpanStatusCode } from "@opentelemetry/api";
 import path from "node:path";
 import fs from "node:fs";
 import { runMigrations, resolveSchemaDir } from "./migrations.js";
@@ -215,7 +215,9 @@ export function tracedQuery<T>(operation: string, table: string, fn: () => T): T
     },
   });
   try {
-    return fn();
+    // Execute fn in a context where this span is active, so any nested
+    // instrumentation is properly linked as a child span.
+    return context.with(trace.setSpan(context.active(), span), fn);
   } catch (err) {
     span.recordException(err instanceof Error ? err : String(err));
     span.setStatus({ code: SpanStatusCode.ERROR });

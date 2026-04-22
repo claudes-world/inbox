@@ -11,7 +11,7 @@ import { analyticsRoutes } from "./routes/analytics.js";
 import { openApiRoutes } from "./routes/openapi.js";
 import { readLimiter, mutationLimiter } from "./lib/rate-limit.js";
 import { getTracer } from "./lib/otel.js";
-import { SpanStatusCode } from "@opentelemetry/api";
+import { context, trace, SpanStatusCode } from "@opentelemetry/api";
 
 export const app = new Hono();
 
@@ -25,15 +25,20 @@ app.use("*", cors());
 const httpTracer = getTracer('inbox-bff-http');
 
 app.use('/api/*', async (c, next) => {
-  const span = httpTracer.startSpan(`${c.req.method} ${c.req.routePath}`, {
+  // Use a placeholder name — routePath resolves to '/api/*' before next() runs.
+  // We update it after next() to get the real template (e.g. /api/inbox/:messageId).
+  const span = httpTracer.startSpan(`${c.req.method} /api/*`, {
     attributes: {
       'http.method': c.req.method,
-      'http.route': c.req.routePath,
-      'http.url': c.req.url,
     },
   });
   try {
-    await next();
+    // Set span as active context so DB child spans nest correctly under this request span.
+    await context.with(trace.setSpan(context.active(), span), () => next());
+    // routePath is now resolved to the handler template after next() completes.
+    const route = c.req.routePath;
+    span.updateName(`${c.req.method} ${route}`);
+    span.setAttribute('http.route', route);
     span.setAttribute('http.status_code', c.res.status);
     if (c.res.status >= 500) {
       span.setStatus({ code: SpanStatusCode.ERROR });
