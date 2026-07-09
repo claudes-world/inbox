@@ -90,7 +90,8 @@
                 "type": [
                   "string",
                   "null"
-                ]
+                ],
+                "default": null
               },
               "details": {}
             },
@@ -1262,7 +1263,8 @@
                   "replied",
                   "hidden",
                   "restored",
-                  "failed"
+                  "failed",
+                  null
                 ]
               },
               "actor_address": {
@@ -1477,6 +1479,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -1562,6 +1565,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -1642,6 +1646,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -1722,6 +1727,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -1802,6 +1808,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -1874,6 +1881,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -1964,6 +1972,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2093,6 +2102,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2163,6 +2173,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2243,6 +2254,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2323,6 +2335,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2426,6 +2439,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2724,6 +2738,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }
@@ -2801,6 +2816,7 @@
               "example": "pm-alpha@vps-1"
             },
             "required": true,
+            "description": "Acting address in local@host format. Required on every endpoint except /health and /api/openapi.json.",
             "name": "x-inbox-address",
             "in": "header"
           }

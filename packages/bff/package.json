@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "7.3.0",
+    "@asteasolutions/zod-to-openapi": "8.5.0",
     "@hono/node-server": "^1.14.0",
     "@inbox/contracts": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
@@ -28,7 +28,7 @@
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "better-sqlite3": "^12.8.0",
     "hono": "^4.7.0",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
